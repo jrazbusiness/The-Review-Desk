@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
-const SUPABASE_URL = " https://wsdtukcjgxnrrnxccjom.supabase.co";
+const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
 const ADMIN_PIN = "0527"; // ← change this to your own PIN
 // ════════════════════════════════════════════════════════════════════════════
