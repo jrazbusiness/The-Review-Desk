@@ -1506,17 +1506,10 @@ export default function App() {
       const rec = {...data, id:genId()};
       setBusinesses(p=>[...p,rec]); setAddBiz(false);
       await supabase.from("businesses").insert(toBizRow(rec));
-    }
-    toast_("Saved ✓");
+   toast_("Saved ✓");
   };
   const deleteBiz = async id => {
-    setBusinesses(p=>p.filter(b=>b.id!==id)); setDelConfirm(null);
-    await supabase.from("businesses").delete().eq("id",id);
-    toast_("Removed",T.danger);
-  };
-
   const keysMissing = SUPABASE_URL.includes("PASTE_YOUR") || SUPABASE_ANON_KEY.includes("PASTE_YOUR");
-
   if (keysMissing) return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter','Segoe UI',sans-serif", padding:"24px" }}>
       <div style={{ maxWidth:380, textAlign:"center" }}>
