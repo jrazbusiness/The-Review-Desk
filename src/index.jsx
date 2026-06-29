@@ -1489,6 +1489,18 @@ export default function App() {
     if (editBiz) {
       const merged = {...editBiz,...data};
       setBusinesses(p=>p.map(b=>b.id===editBiz.id?merged:b)); setEditBiz(null);
+      const { error } = await supabase.from("businesses").update(toBizRow(merged)).eq("id",merged.id);
+      if (error) { alert("Update error: " + JSON.stringify(error)); return; }
+    } else {
+      const rec = {...data, id:genId()};
+      setBusinesses(p=>[...p,rec]); setAddBiz(false);
+      const { error } = await supabase.from("businesses").insert(toBizRow(rec));
+      if (error) { alert("Insert error: " + JSON.stringify(error)); return; }
+    }
+    toast_("Saved ✓");
+  };
+      const merged = {...editBiz,...data};
+      setBusinesses(p=>p.map(b=>b.id===editBiz.id?merged:b)); setEditBiz(null);
       await supabase.from("businesses").update(toBizRow(merged)).eq("id",merged.id);
     } else {
       const rec = {...data, id:genId()};
