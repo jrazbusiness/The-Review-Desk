@@ -1,4 +1,4 @@
-import App from './App';
+import React from 'react';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
