@@ -1240,6 +1240,7 @@ export default function App() {
     await supabase.from("reviewers").update({ default_rate:rate===""||rate==null?null:Number(rate) }).eq("id",id);
     toast_("Rate saved ✓");
   };
+  const deleteReview = async id => {
     setReviews(p=>p.filter(r=>r.id!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("id",id);
     toast_("Deleted",T.danger);
