@@ -1,5 +1,3 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -1429,7 +1427,7 @@ export default function App() {
     if (error) toast_("Save failed — check connection", T.danger);
     else toast_("Profile created ✓");
   };
-  const delReview = async id => {
+  const delReviewer = async id => {
     setReviewers(p=>p.filter(r=>r.id!==id)); setReviews(p=>p.filter(r=>r.reviewerId!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("reviewer_id",id);
     await supabase.from("reviewers").delete().eq("id",id);
@@ -1499,17 +1497,14 @@ export default function App() {
     }
     toast_("Saved ✓");
   };
-      const merged = {...editBiz,...data};
-      setBusinesses(p=>p.map(b=>b.id===editBiz.id?merged:b)); setEditBiz(null);
-      await supabase.from("businesses").update(toBizRow(merged)).eq("id",merged.id);
-    } else {
-      const rec = {...data, id:genId()};
-      setBusinesses(p=>[...p,rec]); setAddBiz(false);
-      await supabase.from("businesses").insert(toBizRow(rec));
-   toast_("Saved ✓");
-  };
   const deleteBiz = async id => {
+    setBusinesses(p=>p.filter(b=>b.id!==id)); setDelConfirm(null);
+    await supabase.from("businesses").delete().eq("id",id);
+    toast_("Removed",T.danger);
+  };
+
   const keysMissing = SUPABASE_URL.includes("PASTE_YOUR") || SUPABASE_ANON_KEY.includes("PASTE_YOUR");
+
   if (keysMissing) return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter','Segoe UI',sans-serif", padding:"24px" }}>
       <div style={{ maxWidth:380, textAlign:"center" }}>
@@ -1655,10 +1650,3 @@ export default function App() {
     {toast && <Toast msg={toast.msg} color={toast.color} />}
   </>;
 }
-
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
