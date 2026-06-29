@@ -1429,7 +1429,7 @@ export default function App() {
     if (error) toast_("Save failed — check connection", T.danger);
     else toast_("Profile created ✓");
   };
-  const deleteReview = async id => {
+  const delReview = async id => {
     setReviewers(p=>p.filter(r=>r.id!==id)); setReviews(p=>p.filter(r=>r.reviewerId!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("reviewer_id",id);
     await supabase.from("reviewers").delete().eq("id",id);
