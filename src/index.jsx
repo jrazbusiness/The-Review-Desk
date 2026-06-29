@@ -1,16 +1,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App.jsx';
-import React from 'react';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
-const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
-const ADMIN_PIN = "0527"; // ← change this to your own PIN
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+const ADMIN_PIN = "1234"; // ← change this to your own PIN
 // ════════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -50,8 +48,8 @@ const toReviewRow = r => ({
   paid_out:r.paidOut===""||r.paidOut==null?null:Number(r.paidOut),
   received_in:r.receivedIn===""||r.receivedIn==null?null:Number(r.receivedIn),
 });
-const fromBizRow = b => ({ id:b.id, name:b.name, platform:b.platform, url:b.url||"", emoji:b.emoji||"🏢" });
-const toBizRow   = b => ({ id:b.id, name:b.name, platform:b.platform, url:b.url||"", emoji:b.emoji||"🏢" });
+const fromBizRow = b => ({ id:b.id, name:b.name, platform:b.platform, url:b.url||"", emoji:b.emoji||"🏢", defaultPay:b.default_pay==null?"":String(b.default_pay) });
+const toBizRow   = b => ({ id:b.id, name:b.name, platform:b.platform, url:b.url||"", emoji:b.emoji||"🏢", default_pay:b.defaultPay===""||b.defaultPay==null?null:Number(b.defaultPay) });
 
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -426,8 +424,8 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
       </div>
 
       <div style={{ flex:1, padding:"4px 20px 120px", overflowY:"auto" }}>
-        <Field label="Client name *" hint="The business or person the review was for">
-          <input style={inp} placeholder="e.g. Tony's Pizza" value={clientName}
+        <Field label="Which account was the review posted on?" hint="The profile name on Google, Yelp, etc.">
+          <input style={inp} placeholder="e.g. Downtown Dental - Main St" value={clientName}
             onChange={e=>setClient(e.target.value)} autoFocus />
         </Field>
         <Field label="Platform">
@@ -470,7 +468,7 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
           <div style={{ background:T.card, borderRadius:18, border:`1.5px solid ${T.border}`, overflow:"hidden", marginBottom:16 }}>
             {[
               { label:"Business page", value:`${biz.emoji||"🏢"} ${biz.name}` },
-              { label:"Client",        value:clientName },
+              { label:"Account",       value:clientName },
               { label:"Platform",      value:platform },
               { label:"Status",        value:`${statusCfg.icon} ${statusCfg.label}` },
               { label:"Date",          value:`${mo} ${dy}, ${yr}` },
@@ -598,8 +596,8 @@ function ReviewForm({ initial, reviewers, businesses, onSave, onClose }) {
       <Field label="Business page">
         <Chips options={businesses.map(b=>({value:b.id,label:`${b.emoji||"🏢"} ${b.name}`}))} value={form.businessId} onChange={s("businessId")} />
       </Field>
-      <Field label="Client name *">
-        <input style={inp} placeholder="e.g. Tony's Pizza" value={form.clientName} onChange={e=>s("clientName")(e.target.value)} autoFocus />
+      <Field label="Account the review is under *">
+        <input style={inp} placeholder="e.g. Downtown Dental - Main St" value={form.clientName} onChange={e=>s("clientName")(e.target.value)} autoFocus />
       </Field>
       <Field label="Platform">
         <Chips options={PLATFORMS} value={form.platform} onChange={s("platform")} />
@@ -719,14 +717,18 @@ function PaySheet({ review, businesses, onSave, onClose }) {
 // ADMIN — Business Page Sheet (admin-only creation)
 // ══════════════════════════════════════════════════════════════════════════════
 function BusinessSheet({ initial, onSave, onClose }) {
-  const [name,     setName]     = useState(initial?.name||"");
-  const [platform, setPlatform] = useState(initial?.platform||"Google");
-  const [url,      setUrl]      = useState(initial?.url||"");
-  const [emoji,    setEmoji]    = useState(initial?.emoji||"🏢");
+  const [name,       setName]       = useState(initial?.name||"");
+  const [platform,   setPlatform]   = useState(initial?.platform||"Google");
+  const [url,        setUrl]        = useState(initial?.url||"");
+  const [emoji,      setEmoji]      = useState(initial?.emoji||"🏢");
+  const [defaultPay, setDefaultPay] = useState(initial?.defaultPay||"");
   return (
     <Sheet onClose={onClose} title={initial?"Edit Business Page":"Add Business Page"}>
       <Field label="Business name *">
         <input style={inp} placeholder="e.g. Downtown Dental" value={name} onChange={e=>setName(e.target.value)} autoFocus />
+      </Field>
+      <Field label="What they pay you per review ($)" hint="Auto-fills Received when a review comes in">
+        <input type="number" style={inp} placeholder="e.g. 25.00" min="0" step="0.01" value={defaultPay} onChange={e=>setDefaultPay(e.target.value)} />
       </Field>
       <Field label="Icon">
         <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
@@ -746,7 +748,7 @@ function BusinessSheet({ initial, onSave, onClose }) {
       <Field label="URL (optional)">
         <input style={inp} placeholder="https://..." value={url} onChange={e=>setUrl(e.target.value)} />
       </Field>
-      <BigBtn onClick={()=>name.trim()&&onSave({name:name.trim(),platform,url,emoji})} disabled={!name.trim()}>
+      <BigBtn onClick={()=>name.trim()&&onSave({name:name.trim(),platform,url,emoji,defaultPay})} disabled={!name.trim()}>
         {initial?"Save Changes":"Add Page"}
       </BigBtn>
       <div style={{ height:8 }} />
@@ -898,11 +900,14 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Team Tab (reviewers list + business pages, admin-only biz creation)
 // ══════════════════════════════════════════════════════════════════════════════
-function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onAddBusiness, onEditBusiness, onDeleteBusiness }) {
+function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditReviewerRate, onAddBusiness, onEditBusiness, onDeleteBusiness }) {
+  const [editRateRv, setEditRateRv] = useState(null);
+  const [rateVal,    setRateVal]    = useState("");
+
   return (
     <div style={{ padding:"16px 16px 24px" }}>
 
-      {/* Reviewers — read-only list, they self-register */}
+      {/* Reviewers — self-registered, but admin can set their rate */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
         <div style={{ fontSize:15, fontWeight:800, color:T.text }}>Reviewers</div>
         <div style={{ fontSize:11, color:T.muted, fontWeight:600 }}>Self-registered</div>
@@ -915,21 +920,53 @@ function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onAddBusine
             {reviewers.map(rv=>{
               const ct=reviews.filter(r=>r.reviewerId===rv.id).length;
               return (
-                <div key={rv.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", background:T.card, border:`1px solid ${T.border}`, borderRadius:14 }}>
-                  <Avatar name={rv.name} color={rv.color} size={40} />
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{rv.name}</div>
-                    <div style={{ fontSize:12, color:T.muted }}>{ct} review{ct!==1?"s":""}</div>
+                <div key={rv.id} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px" }}>
+                    <Avatar name={rv.name} color={rv.color} size={40} />
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{rv.name}</div>
+                      <div style={{ fontSize:12, color:T.muted }}>{ct} review{ct!==1?"s":""}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button onClick={()=>{ setEditRateRv(rv); setRateVal(rv.defaultRate||""); }}
+                        style={{ padding:"7px 10px", background:`${T.accent}20`, color:T.accent, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        Set Rate
+                      </button>
+                      <button onClick={()=>onDeleteReviewer(rv.id)}
+                        style={{ padding:"7px 10px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={()=>onDeleteReviewer(rv.id)}
-                    style={{ padding:"7px 10px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                    Remove
-                  </button>
+                  {rv.defaultRate && (
+                    <div style={{ padding:"8px 16px", borderTop:`1px solid ${T.border}`, background:`${T.accent}08`, fontSize:12, color:T.accent, fontWeight:600 }}>
+                      💸 Auto-pays {fmt(parseFloat(rv.defaultRate))} per review
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
       }
+
+      {/* Rate edit sheet */}
+      {editRateRv && (
+        <Sheet onClose={()=>setEditRateRv(null)} title={`${editRateRv.name}'s Rate`}>
+          <Field label="What you pay per review ($)" hint="Auto-fills Paid Out whenever they submit">
+            <input type="number" style={inp} placeholder="e.g. 10.00" min="0" step="0.01"
+              value={rateVal} onChange={e=>setRateVal(e.target.value)} autoFocus />
+          </Field>
+          <BigBtn onClick={()=>{ onEditReviewerRate(editRateRv.id, rateVal); setEditRateRv(null); }}>
+            Save Rate
+          </BigBtn>
+          <div style={{ height:8 }} />
+          <button onClick={()=>setEditRateRv(null)} style={{ width:"100%", padding:"13px", background:"transparent",
+            border:`1.5px solid ${T.border}`, borderRadius:14, color:T.muted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+            Cancel
+          </button>
+          <div style={{ height:8 }} />
+        </Sheet>
+      )}
 
       {/* Business pages — admin creates these */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -1109,7 +1146,7 @@ export default function App() {
           supabase.from("businesses").select("*").order("created_at",{ascending:true}),
         ]);
         if (!active) return;
-        if (rvRes.data)  setReviewers(rvRes.data.map(r=>({id:r.id,name:r.name,color:r.color,note:r.note||""})));
+        if (rvRes.data)  setReviewers(rvRes.data.map(r=>({id:r.id,name:r.name,color:r.color,note:r.note||"",defaultRate:r.default_rate==null?"":String(r.default_rate)})));
         if (reRes.data)  setReviews(reRes.data.map(fromReviewRow));
         if (bizRes.data) setBusinesses(bizRes.data.map(fromBizRow));
       } catch(e) {
@@ -1145,7 +1182,10 @@ export default function App() {
   // ── CRUD (writes to Supabase; realtime brings the change back to all devices)
   const addReviewer = async rv => {
     setReviewers(p=>[...p,rv]); // optimistic
-    const { error } = await supabase.from("reviewers").insert({ id:rv.id, name:rv.name, color:rv.color, note:rv.note||"" });
+    const { error } = await supabase.from("reviewers").insert({
+      id:rv.id, name:rv.name, color:rv.color, note:rv.note||"",
+      default_rate:rv.defaultRate===""||rv.defaultRate==null?null:Number(rv.defaultRate)
+    });
     if (error) toast_("Save failed — check connection", T.danger);
     else toast_("Profile created ✓");
   };
@@ -1195,7 +1235,11 @@ export default function App() {
     ));
     toast_(`Pay saved for ${filled.length} reviews 💰`);
   };
-  const deleteReview = async id => {
+  const editReviewerRate = async (id, rate) => {
+    setReviewers(p=>p.map(r=>r.id===id?{...r,defaultRate:rate}:r));
+    await supabase.from("reviewers").update({ default_rate:rate===""||rate==null?null:Number(rate) }).eq("id",id);
+    toast_("Rate saved ✓");
+  };
     setReviews(p=>p.filter(r=>r.id!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("id",id);
     toast_("Deleted",T.danger);
@@ -1245,8 +1289,15 @@ export default function App() {
     const rv=reviewers.find(r=>r.id===portalId);
     if(!rv){setMode("picker");return null;}
     const submitReview = async r => {
-      setReviews(p=>[...p,r]); // optimistic
-      const { error } = await supabase.from("reviews").insert(toReviewRow(r));
+      const rv2 = reviewers.find(x=>x.id===r.reviewerId);
+      const biz2 = businesses.find(x=>x.id===r.businessId);
+      const withPay = {
+        ...r,
+        paidOut: rv2?.defaultRate || "",
+        receivedIn: biz2?.defaultPay || "",
+      };
+      setReviews(p=>[...p,withPay]); // optimistic
+      const { error } = await supabase.from("reviews").insert(toReviewRow(withPay));
       if (error) toast_("Submit failed — check connection", T.danger);
       else toast_("Logged 🎉");
     };
@@ -1315,6 +1366,7 @@ export default function App() {
               onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})} />}
             {adminTab==="team"    && <TeamTab reviewers={reviewers} reviews={reviews} businesses={businesses}
               onDeleteReviewer={id=>setDelConfirm({type:"reviewer",id,label:"this reviewer and all their data"})}
+              onEditReviewerRate={editReviewerRate}
               onAddBusiness={()=>setAddBiz(true)} onEditBusiness={b=>setEditBiz(b)}
               onDeleteBusiness={id=>setDelConfirm({type:"biz",id,label:"this business page"})} />}
           </div>
