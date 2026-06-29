@@ -6,8 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
-const SUPABASE_URL = " https://wsdtukcjgxnrrnxccjom.supabase.co ";
-const SUPABASE_ANON_KEY = " eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
+const SUPABASE_URL = " https://wsdtukcjgxnrrnxccjom.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
 const ADMIN_PIN = "0527"; // ← change this to your own PIN
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -429,8 +429,8 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
       </div>
 
       <div style={{ flex:1, padding:"4px 20px 120px", overflowY:"auto" }}>
-        <Field label="Which account was the review posted on?" hint="The profile name on Google, Yelp, etc.">
-          <input style={inp} placeholder="e.g. Downtown Dental - Main St" value={clientName}
+        <Field label="Name on the account that posted" hint="The person's name whose profile was used">
+          <input style={inp} placeholder="e.g. John Smith" value={clientName}
             onChange={e=>setClient(e.target.value)} autoFocus />
         </Field>
         <Field label="Platform">
@@ -473,7 +473,7 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
           <div style={{ background:T.card, borderRadius:18, border:`1.5px solid ${T.border}`, overflow:"hidden", marginBottom:16 }}>
             {[
               { label:"Business page", value:`${biz.emoji||"🏢"} ${biz.name}` },
-              { label:"Account",       value:clientName },
+              { label:"Posted as",    value:clientName },
               { label:"Platform",      value:platform },
               { label:"Status",        value:`${statusCfg.icon} ${statusCfg.label}` },
               { label:"Date",          value:`${mo} ${dy}, ${yr}` },
@@ -601,8 +601,8 @@ function ReviewForm({ initial, reviewers, businesses, onSave, onClose }) {
       <Field label="Business page">
         <Chips options={businesses.map(b=>({value:b.id,label:`${b.emoji||"🏢"} ${b.name}`}))} value={form.businessId} onChange={s("businessId")} />
       </Field>
-      <Field label="Account the review is under *">
-        <input style={inp} placeholder="e.g. Downtown Dental - Main St" value={form.clientName} onChange={e=>s("clientName")(e.target.value)} autoFocus />
+      <Field label="Name on the posting account *">
+        <input style={inp} placeholder="e.g. John Smith" value={form.clientName} onChange={e=>s("clientName")(e.target.value)} autoFocus />
       </Field>
       <Field label="Platform">
         <Chips options={PLATFORMS} value={form.platform} onChange={s("platform")} />
@@ -1429,7 +1429,7 @@ export default function App() {
     if (error) toast_("Save failed — check connection", T.danger);
     else toast_("Profile created ✓");
   };
-  const delReviewer = async id => {
+  const deleteReview = async id => {
     setReviewers(p=>p.filter(r=>r.id!==id)); setReviews(p=>p.filter(r=>r.reviewerId!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("reviewer_id",id);
     await supabase.from("reviewers").delete().eq("id",id);
@@ -1480,7 +1480,6 @@ export default function App() {
     await supabase.from("reviewers").update({ default_rate:rate===""||rate==null?null:Number(rate) }).eq("id",id);
     toast_("Rate saved ✓");
   };
-   const deleteReview = async id => {
     setReviews(p=>p.filter(r=>r.id!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("id",id);
     toast_("Deleted",T.danger);
@@ -1650,7 +1649,6 @@ export default function App() {
     {toast && <Toast msg={toast.msg} color={toast.color} />}
   </>;
 }
-
 
 
 ReactDOM.createRoot(document.getElementById('root')).render(
