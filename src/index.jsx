@@ -6,8 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
-const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
+const SUPABASE_URL = " https://wsdtukcjgxnrrnxccjom.supabase.co ";
+const SUPABASE_ANON_KEY = " eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
 const ADMIN_PIN = "0527"; // ← change this to your own PIN
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -148,7 +148,7 @@ function Badge({ status }) {
   return <span style={{ padding:"3px 10px", borderRadius:40, background:cfg.bg, color:cfg.color, fontSize:11, fontWeight:700 }}>{cfg.label}</span>;
 }
 
-function TabBar({ tab, onChange }) {
+function TabBar({ tab, onChange, newCount=0 }) {
   return (
     <div style={{ position:"fixed", bottom:0, left:0, right:0, background:T.surface,
       borderTop:`1px solid ${T.border}`, display:"flex", zIndex:200,
@@ -156,8 +156,13 @@ function TabBar({ tab, onChange }) {
       {[{id:"home",icon:"📊",label:"Overview"},{id:"reviews",icon:"⭐",label:"Reviews"},{id:"team",icon:"👥",label:"Team"}].map(t=>(
         <button key={t.id} onClick={()=>onChange(t.id)}
           style={{ flex:1, padding:"10px 0 6px", background:"none", border:"none", cursor:"pointer", fontFamily:"inherit",
-            display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
+            display:"flex", flexDirection:"column", alignItems:"center", gap:3, position:"relative" }}>
           <span style={{ fontSize:22 }}>{t.icon}</span>
+          {t.id==="home" && newCount>0 && (
+            <div style={{ position:"absolute", top:8, right:"25%", width:16, height:16, borderRadius:"50%",
+              background:T.danger, display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:9, fontWeight:900, color:"#fff" }}>{newCount>9?"9+":newCount}</div>
+          )}
           <span style={{ fontSize:10, fontWeight:700, color:tab===t.id?T.accent:T.muted, letterSpacing:"0.04em" }}>{t.label.toUpperCase()}</span>
           {tab===t.id&&<div style={{ width:18, height:2, borderRadius:1, background:T.accent }} />}
         </button>
@@ -757,9 +762,107 @@ function BusinessSheet({ initial, onSave, onClose }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ADMIN — Overview Tab
+// CHARTS — pure SVG, no library needed
 // ══════════════════════════════════════════════════════════════════════════════
-function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay }) {
+function LineChart({ data, color=T.accent, label="" }) {
+  // data: [{x: "Jan W1", y: 42}, ...]
+  if (!data.length) return null;
+  const W=320, H=100, PAD=8;
+  const ys = data.map(d=>d.y);
+  const min=Math.min(...ys), max=Math.max(...ys);
+  const range = max-min || 1;
+  const pts = data.map((d,i)=>{
+    const x = PAD + (i/(data.length-1||1))*(W-PAD*2);
+    const y = H-PAD - ((d.y-min)/range)*(H-PAD*2);
+    return `${x},${y}`;
+  }).join(" ");
+  const lastPt = pts.split(" ").pop().split(",");
+  const lastVal = data[data.length-1]?.y;
+  return (
+    <div style={{ width:"100%", overflowX:"auto" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:H }}>
+        <polyline points={pts} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        {data.map((d,i)=>{
+          const x=PAD+(i/(data.length-1||1))*(W-PAD*2);
+          const y=H-PAD-((d.y-min)/range)*(H-PAD*2);
+          return <circle key={i} cx={x} cy={y} r={3} fill={color} />;
+        })}
+        {lastPt[0] && (
+          <text x={parseFloat(lastPt[0])+6} y={parseFloat(lastPt[1])+4} fill={color} fontSize={10} fontWeight={700}>
+            {fmt(lastVal)}
+          </text>
+        )}
+      </svg>
+      <div style={{ display:"flex", justifyContent:"space-between", marginTop:2 }}>
+        <span style={{ fontSize:10, color:T.muted }}>{data[0]?.x}</span>
+        <span style={{ fontSize:10, color:T.muted }}>{data[data.length-1]?.x}</span>
+      </div>
+    </div>
+  );
+}
+
+function BarChart({ data, color=T.accent }) {
+  // data: [{label, value, color?}, ...]
+  if (!data.length) return null;
+  const max = Math.max(...data.map(d=>d.value), 1);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+      {data.map((d,i)=>(
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ fontSize:12, color:T.muted, width:80, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.label}</div>
+          <div style={{ flex:1, background:T.border, borderRadius:4, height:10, overflow:"hidden" }}>
+            <div style={{ width:`${(d.value/max)*100}%`, height:"100%", background:d.color||color, borderRadius:4, transition:"width 0.3s" }} />
+          </div>
+          <div style={{ fontSize:12, fontWeight:700, color:T.text, width:24, textAlign:"right" }}>{d.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EXPORT — CSV download
+// ══════════════════════════════════════════════════════════════════════════════
+function exportCSV(reviews, reviewers, businesses) {
+  const rows = [
+    ["Date","Account","Business Page","Platform","Status","Reviewer","Paid Out","Received","Margin","Notes"],
+    ...reviews.map(r=>{
+      const rv=reviewers.find(x=>x.id===r.reviewerId);
+      const biz=businesses.find(x=>x.id===r.businessId);
+      const paid=parseFloat(r.paidOut)||0;
+      const rec=parseFloat(r.receivedIn)||0;
+      return [r.date, r.clientName, biz?.name||"", r.platform, r.status, rv?.name||"",
+        paid.toFixed(2), rec.toFixed(2), (rec-paid).toFixed(2), r.notes||""];
+    })
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download="review-desk-export.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportPaySummary(reviews, reviewers) {
+  const rows = [
+    ["Reviewer","Total Reviews","Total Paid Out","Total Received","Net"],
+    ...reviewers.map(rv=>{
+      const myR=reviews.filter(r=>r.reviewerId===rv.id);
+      const paid=myR.reduce((s,r)=>s+(parseFloat(r.paidOut)||0),0);
+      const rec=myR.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0),0);
+      return [rv.name, myR.length, paid.toFixed(2), rec.toFixed(2), (rec-paid).toFixed(2)];
+    })
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download="review-desk-pay-summary.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMIN — Overview Tab (with charts + notifications + export)
+// ══════════════════════════════════════════════════════════════════════════════
+function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay, newCount, onClearNew }) {
   const g = useMemo(()=>{
     const live=reviews.filter(r=>r.status==="live").length;
     const down=reviews.filter(r=>r.status==="taken_down").length;
@@ -770,11 +873,61 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay 
     return{live,down,rep,paid,rec,net:rec-paid,unp,total:reviews.length};
   },[reviews]);
 
+  // Weekly net profit chart (last 8 weeks)
+  const weeklyChart = useMemo(()=>{
+    const weeks = {};
+    reviews.forEach(r=>{
+      const d = new Date(r.date);
+      const start = new Date(d); start.setDate(d.getDate()-d.getDay());
+      const key = start.toISOString().slice(0,10);
+      if (!weeks[key]) weeks[key]={net:0};
+      weeks[key].net += (parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0);
+    });
+    return Object.entries(weeks).sort(([a],[b])=>a>b?1:-1).slice(-8).map(([k,v])=>({
+      x: new Date(k).toLocaleDateString("en-US",{month:"short",day:"numeric"}),
+      y: v.net
+    }));
+  },[reviews]);
+
+  // Reviews per reviewer bar chart
+  const reviewerChart = useMemo(()=>
+    reviewers.map(rv=>({
+      label: rv.name.split(" ")[0],
+      value: reviews.filter(r=>r.reviewerId===rv.id).length,
+      color: rv.color,
+    })).sort((a,b)=>b.value-a.value)
+  ,[reviews,reviewers]);
+
   return (
     <div style={{ padding:"18px 16px 24px" }}>
+
+      {/* New review notification banner */}
+      {newCount>0 && (
+        <div onClick={onClearNew} style={{ background:`${T.accent}20`, border:`1.5px solid ${T.accent}50`,
+          borderRadius:14, padding:"12px 16px", marginBottom:14, display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+          <span style={{ fontSize:20 }}>🔔</span>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:700, color:T.accent, fontSize:14 }}>{newCount} new review{newCount!==1?"s":""} since your last visit</div>
+            <div style={{ fontSize:12, color:T.muted }}>Tap to dismiss</div>
+          </div>
+        </div>
+      )}
+
       {/* Net profit hero */}
       <div style={{ background:T.card, borderRadius:20, padding:"22px 20px", marginBottom:14, border:`1px solid ${T.border}` }}>
-        <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, marginBottom:4 }}>Net Profit — All Time</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted }}>Net Profit — All Time</div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={()=>exportPaySummary(reviews,reviewers)}
+              style={{ padding:"5px 10px", background:`${T.accent}20`, color:T.accent, border:"none", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              Pay CSV
+            </button>
+            <button onClick={()=>exportCSV(reviews,reviewers,businesses)}
+              style={{ padding:"5px 10px", background:`${T.accent}20`, color:T.accent, border:"none", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              Export CSV
+            </button>
+          </div>
+        </div>
         <div style={{ fontSize:46, fontWeight:900, color:g.net>=0?T.accent:T.danger, letterSpacing:"-0.02em", lineHeight:1 }}>{fmt(g.net)}</div>
         <div style={{ display:"flex", gap:22, marginTop:14 }}>
           <div><div style={{ fontSize:11, color:T.muted }}>Paid Out</div><div style={{ fontWeight:700, color:T.danger, fontSize:16 }}>{fmt(g.paid)}</div></div>
@@ -793,6 +946,22 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay 
           </div>
         ))}
       </div>
+
+      {/* Weekly net profit chart */}
+      {weeklyChart.length>1 && (
+        <div style={{ background:T.card, borderRadius:16, padding:"16px", marginBottom:14, border:`1px solid ${T.border}` }}>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, marginBottom:12 }}>Weekly Net Profit</div>
+          <LineChart data={weeklyChart} color={T.accent} />
+        </div>
+      )}
+
+      {/* Reviews per reviewer chart */}
+      {reviewerChart.length>0 && reviewerChart.some(d=>d.value>0) && (
+        <div style={{ background:T.card, borderRadius:16, padding:"16px", marginBottom:14, border:`1px solid ${T.border}` }}>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, marginBottom:12 }}>Reviews per Reviewer</div>
+          <BarChart data={reviewerChart} />
+        </div>
+      )}
 
       {g.unp>0 && (
         <div style={{ background:`${T.purple}18`, border:`1.5px solid ${T.purple}40`, borderRadius:14, padding:"12px 16px", marginBottom:14 }}>
@@ -849,21 +1018,77 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay 
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ADMIN — Reviews Tab
+// ADMIN — Reviews Tab (with date range filter)
 // ══════════════════════════════════════════════════════════════════════════════
 function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onEdit, onDelete }) {
-  const [filter, setFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [filter,    setFilter]    = useState("all");
+  const [search,    setSearch]    = useState("");
+  const [dateFrom,  setDateFrom]  = useState("");
+  const [dateTo,    setDateTo]    = useState("");
+  const [showDates, setShowDates] = useState(false);
+
   const filtered = useMemo(()=>{
-    let l=filter==="all"?reviews:reviews.filter(r=>r.status===filter);
-    if(search.trim()){const q=search.toLowerCase();l=l.filter(r=>r.clientName.toLowerCase().includes(q)||(r.notes||"").toLowerCase().includes(q));}
+    let l = filter==="all" ? reviews : reviews.filter(r=>r.status===filter);
+    if (search.trim()) { const q=search.toLowerCase(); l=l.filter(r=>r.clientName.toLowerCase().includes(q)||(r.notes||"").toLowerCase().includes(q)); }
+    if (dateFrom) l = l.filter(r=>r.date >= dateFrom);
+    if (dateTo)   l = l.filter(r=>r.date <= dateTo);
     return [...l].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  },[reviews,filter,search]);
-  const net=filtered.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0),0);
+  },[reviews,filter,search,dateFrom,dateTo]);
+
+  const net = filtered.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0),0);
+  const hasDateFilter = dateFrom || dateTo;
+
+  function clearDates() { setDateFrom(""); setDateTo(""); }
 
   return (
     <div style={{ padding:"14px 16px 24px" }}>
-      <input style={{ ...inp, marginBottom:12 }} placeholder="🔍  Search reviews..." value={search} onChange={e=>setSearch(e.target.value)} />
+      <input style={{ ...inp, marginBottom:10 }} placeholder="🔍  Search reviews..." value={search} onChange={e=>setSearch(e.target.value)} />
+
+      {/* Date filter row */}
+      <div style={{ display:"flex", gap:8, marginBottom:10, alignItems:"center" }}>
+        <button onClick={()=>setShowDates(s=>!s)}
+          style={{ padding:"8px 14px", borderRadius:40, border:`1.5px solid ${hasDateFilter?T.accent:T.border}`,
+            background:hasDateFilter?`${T.accent}15`:"transparent", color:hasDateFilter?T.accent:T.muted,
+            fontWeight:hasDateFilter?700:500, fontSize:13, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+          📅 {hasDateFilter ? "Date filter on" : "Filter by date"}
+        </button>
+        {hasDateFilter && (
+          <button onClick={clearDates}
+            style={{ padding:"8px 12px", borderRadius:40, border:`1.5px solid ${T.danger}40`,
+              background:`${T.danger}10`, color:T.danger, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            Clear ✕
+          </button>
+        )}
+      </div>
+
+      {showDates && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10, padding:"14px", background:T.card, borderRadius:14, border:`1px solid ${T.border}` }}>
+          <div>
+            <div style={{ fontSize:10, color:T.muted, fontWeight:700, marginBottom:6 }}>FROM</div>
+            <input type="date" style={{ ...inp, padding:"10px 12px", fontSize:14 }} value={dateFrom} onChange={e=>setDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <div style={{ fontSize:10, color:T.muted, fontWeight:700, marginBottom:6 }}>TO</div>
+            <input type="date" style={{ ...inp, padding:"10px 12px", fontSize:14 }} value={dateTo} onChange={e=>setDateTo(e.target.value)} />
+          </div>
+          <div style={{ gridColumn:"1/-1", display:"flex", gap:8, flexWrap:"wrap" }}>
+            {[
+              {l:"Today",    fn:()=>{ const d=today(); setDateFrom(d); setDateTo(d); }},
+              {l:"This week",fn:()=>{ const d=new Date(); const mon=new Date(d); mon.setDate(d.getDate()-d.getDay()+1); setDateFrom(mon.toISOString().slice(0,10)); setDateTo(today()); }},
+              {l:"This month",fn:()=>{ const d=new Date(); setDateFrom(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`); setDateTo(today()); }},
+              {l:"Last 30 days",fn:()=>{ const d=new Date(); d.setDate(d.getDate()-30); setDateFrom(d.toISOString().slice(0,10)); setDateTo(today()); }},
+            ].map(p=>(
+              <button key={p.l} onClick={p.fn}
+                style={{ padding:"6px 12px", borderRadius:40, border:`1px solid ${T.border}`, background:T.surface,
+                  color:T.muted, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                {p.l}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Status filter chips */}
       <div style={{ display:"flex", gap:8, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
         {[{v:"all",l:"All"},{v:"live",l:"✅ Live"},{v:"taken_down",l:"⚠️ Down"},{v:"replenished",l:"🔁 Replenished"}].map(o=>(
           <button key={o.v} onClick={()=>setFilter(o.v)}
@@ -874,6 +1099,7 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
           </button>
         ))}
       </div>
+
       {filtered.length===0
         ? <div style={{ textAlign:"center", padding:"48px 0", color:T.muted, fontSize:14 }}>No reviews match.</div>
         : <>
@@ -1123,6 +1349,20 @@ export default function App() {
   const [portalId,  setPortalId]  = useState(null);
   const [adminTab,  setAdminTab]  = useState("home");
   const [detailRvId,setDetailRvId]= useState(null);
+  const [lastSeenCount, setLastSeenCount] = useState(null);
+  const [newCount, setNewCount] = useState(0);
+
+  // Track new reviews since last admin visit
+  useEffect(()=>{
+    if (!ready || lastSeenCount === null) return;
+    const n = reviews.length - lastSeenCount;
+    if (n > 0) setNewCount(n);
+  },[reviews, ready]);
+
+  function clearNewCount() {
+    setNewCount(0);
+    setLastSeenCount(reviews.length);
+  }
 
   // Sheets
   const [addReview,    setAddReview]    = useState(false);
@@ -1240,7 +1480,6 @@ export default function App() {
     await supabase.from("reviewers").update({ default_rate:rate===""||rate==null?null:Number(rate) }).eq("id",id);
     toast_("Rate saved ✓");
   };
-  const deleteReview = async id => {
     setReviews(p=>p.filter(r=>r.id!==id)); setDelConfirm(null);
     await supabase.from("reviews").delete().eq("id",id);
     toast_("Deleted",T.danger);
@@ -1323,7 +1562,7 @@ export default function App() {
   // ── PIN ──────────────────────────────────────────────────────────────────
   if (mode==="pin") return <>
     <style>{CSS}</style>
-    <PinGate onUnlock={()=>setMode("admin")} />
+    <PinGate onUnlock={()=>{ setMode("admin"); setLastSeenCount(reviews.length); setNewCount(0); }} />
   </>;
 
   // ── Admin ────────────────────────────────────────────────────────────────
@@ -1361,7 +1600,7 @@ export default function App() {
           </div>
 
           <div style={{ height:"calc(100vh - 112px)", overflowY:"auto" }}>
-            {adminTab==="home"    && <HomeTab reviewers={reviewers} reviews={reviews} businesses={businesses} onSelectReviewer={id=>setDetailRvId(id)} onBatchPay={()=>setBatchPayOpen(true)} />}
+            {adminTab==="home"    && <HomeTab reviewers={reviewers} reviews={reviews} businesses={businesses} onSelectReviewer={id=>setDetailRvId(id)} onBatchPay={()=>setBatchPayOpen(true)} newCount={newCount} onClearNew={clearNewCount} />}
             {adminTab==="reviews" && <ReviewsTab reviews={reviews} reviewers={reviewers} businesses={businesses}
               onStatusChange={statusChange} onPay={r=>setPaySheet(r)} onEdit={r=>setEditReview(r)}
               onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})} />}
@@ -1371,7 +1610,7 @@ export default function App() {
               onAddBusiness={()=>setAddBiz(true)} onEditBusiness={b=>setEditBiz(b)}
               onDeleteBusiness={id=>setDelConfirm({type:"biz",id,label:"this business page"})} />}
           </div>
-          <TabBar tab={adminTab} onChange={setAdminTab} />
+          <TabBar tab={adminTab} onChange={setAdminTab} newCount={newCount} />
         </div>
     }
 
@@ -1410,6 +1649,7 @@ export default function App() {
     {toast && <Toast msg={toast.msg} color={toast.color} />}
   </>;
 }
+
 
 
 ReactDOM.createRoot(document.getElementById('root')).render(
