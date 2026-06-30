@@ -1,7 +1,6 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
