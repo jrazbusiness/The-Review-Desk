@@ -36,6 +36,8 @@ const STATUS_LABEL = { live:"Live", taken_down:"Taken Down", replenished:"Replen
 // ════════════════════════════════════════════════════════════════════════════
 //  🖼️  LOGO — paste your hosted logo URL here once uploaded (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
+const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
+const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
 
 // ─── Logo (falls back to emoji+text if the image fails to load) ──────────────
 function Logo({ size=44, full=false }) {
@@ -1427,9 +1429,12 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Team Tab (reviewers list + business pages, admin-only biz creation)
 // ══════════════════════════════════════════════════════════════════════════════
-function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditReviewerRate, onAddBusiness, onEditBusiness, onDeleteBusiness }) {
+function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditReviewerRate, onEditReviewerProfile, onAddBusiness, onEditBusiness, onDeleteBusiness }) {
   const [editRateRv, setEditRateRv] = useState(null);
   const [rateVal,    setRateVal]    = useState("");
+  const [editProfileRv, setEditProfileRv] = useState(null);
+  const [profileName,   setProfileName]   = useState("");
+  const [profileColor,  setProfileColor]  = useState("");
 
   return (
     <div style={{ padding:"16px 16px 24px" }}>
@@ -1454,16 +1459,20 @@ function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditRevie
                       <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{rv.name}</div>
                       <div style={{ fontSize:12, color:T.muted }}>{ct} review{ct!==1?"s":""}</div>
                     </div>
-                    <div style={{ display:"flex", gap:6 }}>
-                      <button onClick={()=>{ setEditRateRv(rv); setRateVal(rv.defaultRate||""); }}
-                        style={{ padding:"7px 10px", background:`${T.accent}20`, color:T.accent, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                        Set Rate
-                      </button>
-                      <button onClick={()=>onDeleteReviewer(rv.id)}
-                        style={{ padding:"7px 10px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                        Remove
-                      </button>
-                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:6, padding:"0 16px 12px" }}>
+                    <button onClick={()=>{ setEditProfileRv(rv); setProfileName(rv.name); setProfileColor(rv.color); }}
+                      style={{ flex:1, padding:"7px 10px", background:T.surface, color:T.muted, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      Edit Profile
+                    </button>
+                    <button onClick={()=>{ setEditRateRv(rv); setRateVal(rv.defaultRate||""); }}
+                      style={{ flex:1, padding:"7px 10px", background:`${T.accent}20`, color:T.accent, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      Set Rate
+                    </button>
+                    <button onClick={()=>onDeleteReviewer(rv.id)}
+                      style={{ padding:"7px 12px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      Remove
+                    </button>
                   </div>
                   {rv.defaultRate && (
                     <div style={{ padding:"8px 16px", borderTop:`1px solid ${T.border}`, background:`${T.accent}08`, fontSize:12, color:T.accent, fontWeight:600 }}>
@@ -1475,6 +1484,29 @@ function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditRevie
             })}
           </div>
       }
+
+      {/* Edit profile sheet — fixes typos in name or lets them change color */}
+      {editProfileRv && (
+        <Sheet onClose={()=>setEditProfileRv(null)} title="Edit Profile">
+          <Field label="Name">
+            <input style={inp} value={profileName} onChange={e=>setProfileName(e.target.value)} autoFocus />
+          </Field>
+          <Field label="Color">
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+              {PALETTE.map(c=>(
+                <button key={c} onClick={()=>setProfileColor(c)}
+                  style={{ width:36, height:36, borderRadius:"50%", background:c, border:`3px solid ${profileColor===c?"#fff":"transparent"}`,
+                    cursor:"pointer", outline:"none" }} />
+              ))}
+            </div>
+          </Field>
+          <BigBtn onClick={()=>{ if(profileName.trim()){ onEditReviewerProfile(editProfileRv.id,{name:profileName.trim(),color:profileColor}); setEditProfileRv(null); } }}
+            disabled={!profileName.trim()}>
+            Save Changes
+          </BigBtn>
+          <div style={{ height:8 }} />
+        </Sheet>
+      )}
 
       {/* Rate edit sheet */}
       {editRateRv && (
@@ -1522,7 +1554,7 @@ function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditRevie
                   </div>
                   <div style={{ display:"flex", gap:6 }}>
                     <button onClick={()=>onEditBusiness(b)} style={{ padding:"7px 10px", background:T.surface, color:T.muted, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
-                    <button onClick={()=>onDeleteBusiness(b.id)} style={{ padding:"7px 10px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                    <button onClick={()=>onDeleteBusiness(b.id, ct)} style={{ padding:"7px 10px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
                   </div>
                 </div>
               );
@@ -1974,8 +2006,9 @@ export default function App() {
             {adminTab==="team"    && <TeamTab reviewers={reviewers} reviews={reviews} businesses={businesses}
               onDeleteReviewer={id=>setDelConfirm({type:"reviewer",id,label:"this reviewer and all their data"})}
               onEditReviewerRate={editReviewerRate}
+              onEditReviewerProfile={editReviewerProfile}
               onAddBusiness={()=>setAddBiz(true)} onEditBusiness={b=>setEditBiz(b)}
-              onDeleteBusiness={id=>setDelConfirm({type:"biz",id,label:"this business page"})} />}
+              onDeleteBusiness={(id,ct)=>setDelConfirm({type:"biz",id,label:ct>0?`this business page — ${ct} review${ct!==1?"s":""} will be unlinked from it (not deleted, just orphaned)`:"this business page"})} />}
           </div>
           <TabBar tab={adminTab} onChange={setAdminTab} newCount={newCount} />
         </div>
