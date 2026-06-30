@@ -8,7 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 // ════════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
-const ADMIN_PIN = "0527"; // ← change this to your own PIN
+const ADMIN_PIN = "052702"; // ← change this to your own 6-digit PIN
+const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
 // ════════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -31,6 +32,23 @@ const fmt      = n  => n < 0 ? `-$${Math.abs(n).toFixed(2)}` : `$${Number(n).toF
 const initials = n  => n.trim().split(/\s+/).map(w=>w[0]).join("").toUpperCase().slice(0,2);
 const today    = () => new Date().toISOString().slice(0,10);
 const STATUS_LABEL = { live:"Live", taken_down:"Taken Down", replenished:"Replenished" };
+
+// ════════════════════════════════════════════════════════════════════════════
+//  🖼️  LOGO — paste your hosted logo URL here once uploaded (see setup guide)
+// ════════════════════════════════════════════════════════════════════════════
+const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
+const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
+
+// ─── Logo (falls back to emoji+text if the image fails to load) ──────────────
+function Logo({ size=44, full=false }) {
+  const [failed, setFailed] = useState(false);
+  const src = full ? LOGO_URL_FULL : LOGO_URL;
+  if (!failed) {
+    return <img src={src} alt="The Review Desk" onError={()=>setFailed(true)}
+      style={{ height:size, width:"auto", display:"block" }} />;
+  }
+  return <span style={{ fontSize:size*0.7, fontWeight:900 }}>⭐</span>;
+}
 
 // ─── Supabase data layer ──────────────────────────────────────────────────────
 // Row shapes in the DB use snake_case; we map to/from the app's camelCase here.
@@ -317,9 +335,9 @@ function SelfRegister({ onDone }) {
 function ReviewerPicker({ reviewers, onPick, onAdmin, onRegister }) {
   return (
     <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif", display:"flex", flexDirection:"column" }}>
-      <div style={{ padding:"36px 22px 16px" }}>
-        <div style={{ fontSize:30, fontWeight:900, color:T.text, letterSpacing:"-0.02em" }}>⭐ The Review Desk</div>
-        <div style={{ fontSize:15, color:T.muted, marginTop:4 }}>Who are you?</div>
+      <div style={{ padding:"36px 22px 16px", display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center" }}>
+        <Logo size={140} full />
+        <div style={{ fontSize:15, color:T.muted, marginTop:14 }}>Who are you?</div>
       </div>
 
       <div style={{ flex:1, padding:"4px 22px 130px", overflowY:"auto" }}>
@@ -363,7 +381,7 @@ function ReviewerPicker({ reviewers, onPick, onAdmin, onRegister }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // REVIEWER PORTAL — the submission experience after they pick themselves
 // ══════════════════════════════════════════════════════════════════════════════
-function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
+function ReviewerPortal({ reviewer, businesses, reviews, onSubmit, onBack, onShowStats }) {
   const [step, setStep]         = useState(0); // 0=pick biz, 1=details, 2=confirm, 3=done
   const [biz, setBiz]           = useState(null);
   const [platform, setPlatform] = useState("Google");
@@ -371,11 +389,15 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
   const [status, setStatus]     = useState("live");
   const [notes, setNotes]       = useState("");
   const [date, setDate]         = useState(today());
+  const [submitting, setSubmitting] = useState(false);
 
-  function reset() { setBiz(null); setPlatform("Google"); setClient(""); setStatus("live"); setNotes(""); setDate(today()); setStep(0); }
-  function submit() {
-    onSubmit({ id:genId(), reviewerId:reviewer.id, businessId:biz.id, platform, clientName, status, notes, date, paidOut:"", receivedIn:"" });
+  function reset() { setBiz(null); setPlatform("Google"); setClient(""); setStatus("live"); setNotes(""); setDate(today()); setStep(0); setSubmitting(false); }
+  async function submit() {
+    if (submitting) return; // prevent double-tap creating duplicate reviews
+    setSubmitting(true);
+    await onSubmit({ id:genId(), reviewerId:reviewer.id, businessId:biz.id, platform, clientName, status, notes, date, paidOut:"", receivedIn:"" });
     setStep(3);
+    setSubmitting(false);
   }
 
   // ── Step 0: pick business ─────────────────────────────────────────────────
@@ -384,10 +406,15 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
       <div style={{ padding:"22px 20px 10px", display:"flex", alignItems:"center", gap:14 }}>
         <button onClick={onBack} style={{ background:T.card, border:"none", color:T.muted, borderRadius:10, padding:"8px 14px", cursor:"pointer", fontSize:14, fontFamily:"inherit" }}>‹</button>
         <Avatar name={reviewer.name} color={reviewer.color} size={44} />
-        <div>
+        <div style={{ flex:1 }}>
           <div style={{ fontSize:20, fontWeight:900, color:T.text }}>Hey {reviewer.name.split(" ")[0]} 👋</div>
           <div style={{ fontSize:13, color:T.muted }}>Which page did you post on?</div>
         </div>
+        <button onClick={onShowStats}
+          style={{ background:`${reviewer.color}20`, border:`1.5px solid ${reviewer.color}50`, color:reviewer.color,
+            borderRadius:10, padding:"8px 12px", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"inherit", whiteSpace:"nowrap" }}>
+          📊 My Stats
+        </button>
       </div>
       <div style={{ flex:1, padding:"8px 20px 20px", overflowY:"auto" }}>
         {businesses.length===0
@@ -497,7 +524,7 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
         </div>
         <div style={{ position:"fixed", bottom:0, left:0, right:0, padding:"16px 20px 32px",
           background:`linear-gradient(transparent, ${T.bg} 40%)`, display:"flex", flexDirection:"column", gap:10 }}>
-          <BigBtn onClick={submit} color={reviewer.color}>Submit ✓</BigBtn>
+          <BigBtn onClick={submit} color={reviewer.color} disabled={submitting}>{submitting?"Submitting...":"Submit ✓"}</BigBtn>
           <button onClick={()=>setStep(1)} style={{ padding:"13px", background:"transparent",
             border:`1.5px solid ${T.border}`, borderRadius:14, color:T.muted, fontSize:14,
             fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
@@ -523,6 +550,86 @@ function ReviewerPortal({ reviewer, businesses, onSubmit, onBack }) {
           borderRadius:14, color:T.muted, fontSize:15, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
           Done
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REVIEWER — Self Stats (their own dashboard, no one else's data visible)
+// ══════════════════════════════════════════════════════════════════════════════
+function ReviewerSelfStats({ reviewer, reviews, businesses, onBack }) {
+  const stats = useMemo(()=>{
+    const live = reviews.filter(r=>r.status==="live").length;
+    const down = reviews.filter(r=>r.status==="taken_down").length;
+    const rep  = reviews.filter(r=>r.status==="replenished").length;
+    const rate = parseFloat(reviewer.defaultRate)||0;
+    const earned = rate>0 ? rate*reviews.length : null; // only show earnings if a rate is set
+    return { live, down, rep, total:reviews.length, earned, rate };
+  },[reviews,reviewer]);
+
+  const sorted = useMemo(()=>[...reviews].sort((a,b)=>new Date(b.date)-new Date(a.date)),[reviews]);
+
+  return (
+    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif" }}>
+      <div style={{ padding:"22px 20px 16px", display:"flex", alignItems:"center", gap:14 }}>
+        <button onClick={onBack} style={{ background:T.card, border:"none", color:T.muted, borderRadius:10, padding:"8px 14px", cursor:"pointer", fontSize:14, fontFamily:"inherit" }}>‹</button>
+        <Avatar name={reviewer.name} color={reviewer.color} size={44} />
+        <div>
+          <div style={{ fontSize:20, fontWeight:900, color:T.text }}>Your Stats</div>
+          <div style={{ fontSize:13, color:T.muted }}>{reviewer.name}</div>
+        </div>
+      </div>
+
+      <div style={{ padding:"0 20px 100px" }}>
+        {/* Earnings hero — only shown if manager set a rate */}
+        {stats.earned!==null ? (
+          <div style={{ background:T.card, borderRadius:20, padding:"22px 20px", marginBottom:16, border:`1.5px solid ${reviewer.color}40` }}>
+            <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, marginBottom:4 }}>
+              Estimated Earnings
+            </div>
+            <div style={{ fontSize:40, fontWeight:900, color:reviewer.color, letterSpacing:"-0.02em" }}>{fmt(stats.earned)}</div>
+            <div style={{ fontSize:12, color:T.muted, marginTop:6 }}>{fmt(stats.rate)} per review × {stats.total} reviews</div>
+          </div>
+        ) : (
+          <div style={{ background:T.card, borderRadius:16, padding:"16px 18px", marginBottom:16, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:13, color:T.muted, lineHeight:1.5 }}>Your manager hasn't set your rate yet — once they do, you'll see your estimated earnings here.</div>
+          </div>
+        )}
+
+        {/* Status breakdown */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
+          {[{n:stats.live,l:"Live",c:T.accent,i:"✅"},{n:stats.down,l:"Down",c:T.warn,i:"⚠️"},{n:stats.rep,l:"Replenished",c:T.info,i:"🔁"}].map(x=>(
+            <div key={x.l} style={{ background:T.card, borderRadius:14, padding:"14px 10px", border:`1px solid ${T.border}`, textAlign:"center" }}>
+              <div style={{ fontSize:18 }}>{x.i}</div>
+              <div style={{ fontSize:24, fontWeight:900, color:x.c }}>{x.n}</div>
+              <div style={{ fontSize:10, color:T.muted, fontWeight:600 }}>{x.l}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, marginBottom:10 }}>
+          Your Reviews ({stats.total})
+        </div>
+        {sorted.length===0
+          ? <div style={{ textAlign:"center", padding:"40px 0", color:T.muted, fontSize:14 }}>You haven't logged any reviews yet.</div>
+          : <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              {sorted.map(r=>{
+                const biz = businesses.find(b=>b.id===r.businessId);
+                return (
+                  <div key={r.id} style={{ background:T.card, borderRadius:14, padding:"13px 15px", border:`1px solid ${T.border}` }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:T.text, flex:1 }}>{r.clientName}</div>
+                      <Badge status={r.status} />
+                    </div>
+                    <div style={{ fontSize:12, color:T.muted }}>
+                      {biz?.emoji} {biz?.name} · {r.platform} · {r.date}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+        }
       </div>
     </div>
   );
@@ -1298,6 +1405,7 @@ function ReviewerDetail({ reviewer, reviews, businesses, onBack, onStatusChange,
 function PinGate({ onUnlock }) {
   const [pin, setPin]   = useState("");
   const [shake, setShake] = useState(false);
+  const PIN_LENGTH = ADMIN_PIN.length;
   function attempt(p) {
     if (p===ADMIN_PIN) onUnlock();
     else { setShake(true); setPin(""); setTimeout(()=>setShake(false),500); }
@@ -1306,11 +1414,10 @@ function PinGate({ onUnlock }) {
   return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", fontFamily:"'Inter','Segoe UI',sans-serif", padding:"24px" }}>
-      <div style={{ fontSize:36, marginBottom:10 }}>🔐</div>
-      <div style={{ fontSize:22, fontWeight:900, color:T.text, marginBottom:4 }}>The Review Desk</div>
-      <div style={{ fontSize:14, color:T.muted, marginBottom:36 }}>Enter your PIN</div>
-      <div style={{ display:"flex", gap:14, marginBottom:36, transition:"transform 0.05s", transform:shake?"translateX(10px)":"none" }}>
-        {[0,1,2,3].map(i=>(
+      <Logo size={120} full />
+      <div style={{ fontSize:14, color:T.muted, marginTop:16, marginBottom:36 }}>Enter your PIN</div>
+      <div style={{ display:"flex", gap:12, marginBottom:36, transition:"transform 0.05s", transform:shake?"translateX(10px)":"none" }}>
+        {Array.from({length:PIN_LENGTH}).map((_,i)=>(
           <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:pin.length>i?T.accent:T.border, transition:"background 0.1s" }} />
         ))}
       </div>
@@ -1320,7 +1427,7 @@ function PinGate({ onUnlock }) {
             if(d==="⌫"){setPin(p=>p.slice(0,-1));return;}
             if(d==="")return;
             const next=pin+d; setPin(next);
-            if(next.length===4) attempt(next);
+            if(next.length===PIN_LENGTH) attempt(next);
           }}
           style={{ aspectRatio:"1", borderRadius:16, border:"none", background:d===""?"transparent":T.card,
             color:d==="⌫"?T.muted:T.text, fontSize:d==="⌫"?22:24, fontWeight:700,
@@ -1347,6 +1454,7 @@ export default function App() {
   // mode: picker | register | portal | pin | admin
   const [mode,      setMode]      = useState("picker");
   const [portalId,  setPortalId]  = useState(null);
+  const [showOwnStats, setShowOwnStats] = useState(false);
   const [adminTab,  setAdminTab]  = useState("home");
   const [detailRvId,setDetailRvId]= useState(null);
   const [lastSeenCount, setLastSeenCount] = useState(null);
@@ -1420,44 +1528,60 @@ export default function App() {
   function toast_(msg,color){ setToast({msg,color}); setTimeout(()=>setToast(null),2200); }
 
   // ── CRUD (writes to Supabase; realtime brings the change back to all devices)
+  // Every write now surfaces a clear error toast instead of failing silently.
   const addReviewer = async rv => {
     setReviewers(p=>[...p,rv]); // optimistic
     const { error } = await supabase.from("reviewers").insert({
       id:rv.id, name:rv.name, color:rv.color, note:rv.note||"",
       default_rate:rv.defaultRate===""||rv.defaultRate==null?null:Number(rv.defaultRate)
     });
-    if (error) toast_("Save failed — check connection", T.danger);
+    if (error) { setReviewers(p=>p.filter(r=>r.id!==rv.id)); toast_(`Couldn't save profile: ${error.message}`, T.danger); }
     else toast_("Profile created ✓");
+  };
+  const editReviewerProfile = async (id, data) => {
+    const prev = reviewers.find(r=>r.id===id);
+    setReviewers(p=>p.map(r=>r.id===id?{...r,...data}:r));
+    const { error } = await supabase.from("reviewers").update({
+      name:data.name, color:data.color
+    }).eq("id",id);
+    if (error) { setReviewers(p=>p.map(r=>r.id===id?prev:r)); toast_(`Couldn't save: ${error.message}`, T.danger); }
+    else toast_("Profile updated ✓");
   };
   const delReviewer = async id => {
     setReviewers(p=>p.filter(r=>r.id!==id)); setReviews(p=>p.filter(r=>r.reviewerId!==id)); setDelConfirm(null);
-    await supabase.from("reviews").delete().eq("reviewer_id",id);
-    await supabase.from("reviewers").delete().eq("id",id);
-    toast_("Removed",T.danger);
+    const r1 = await supabase.from("reviews").delete().eq("reviewer_id",id);
+    const r2 = await supabase.from("reviewers").delete().eq("id",id);
+    if (r1.error || r2.error) toast_(`Delete may be incomplete: ${(r1.error||r2.error).message}`, T.danger);
+    else toast_("Removed",T.danger);
   };
   const saveRev = async form => {
     if (editReview) {
       const merged = {...form, id:editReview.id, reviewerId:editReview.reviewerId};
       setReviews(p=>p.map(r=>r.id===editReview.id?merged:r)); setEditReview(null);
-      await supabase.from("reviews").update(toReviewRow(merged)).eq("id",merged.id);
+      const { error } = await supabase.from("reviews").update(toReviewRow(merged)).eq("id",merged.id);
+      if (error) { toast_(`Couldn't save: ${error.message}`, T.danger); return; }
     } else {
       const rec = {...form, id:genId()};
       setReviews(p=>[...p,rec]); setAddReview(false);
-      await supabase.from("reviews").insert(toReviewRow(rec));
+      const { error } = await supabase.from("reviews").insert(toReviewRow(rec));
+      if (error) { setReviews(p=>p.filter(r=>r.id!==rec.id)); toast_(`Couldn't save: ${error.message}`, T.danger); return; }
     }
     toast_("Saved ✓");
   };
   const statusChange = async (id,status) => {
+    const prev = reviews.find(r=>r.id===id)?.status;
     setReviews(p=>p.map(r=>r.id===id?{...r,status}:r));
-    await supabase.from("reviews").update({ status }).eq("id",id);
+    const { error } = await supabase.from("reviews").update({ status }).eq("id",id);
+    if (error) { setReviews(p=>p.map(r=>r.id===id?{...r,status:prev}:r)); toast_(`Couldn't update status: ${error.message}`, T.danger); return; }
     toast_(STATUS_LABEL[status]||status);
   };
   const savePay = async upd => {
     setReviews(p=>p.map(r=>r.id===upd.id?upd:r)); setPaySheet(null);
-    await supabase.from("reviews").update({
+    const { error } = await supabase.from("reviews").update({
       paid_out: upd.paidOut===""?null:Number(upd.paidOut),
       received_in: upd.receivedIn===""?null:Number(upd.receivedIn),
     }).eq("id",upd.id);
+    if (error) { toast_(`Couldn't save pay: ${error.message}`, T.danger); return; }
     toast_("Pay saved 💰");
   };
   const saveBatchPay = async entries => {
@@ -1467,22 +1591,27 @@ export default function App() {
       return e ? {...r, paidOut:e.paidOut, receivedIn:e.receivedIn} : r;
     }));
     setBatchPayOpen(false);
-    await Promise.all(filled.map(e=>
+    const results = await Promise.all(filled.map(e=>
       supabase.from("reviews").update({
         paid_out: e.paidOut===""?null:Number(e.paidOut),
         received_in: e.receivedIn===""?null:Number(e.receivedIn),
       }).eq("id",e.id)
     ));
-    toast_(`Pay saved for ${filled.length} reviews 💰`);
+    const failed = results.filter(r=>r.error).length;
+    if (failed>0) toast_(`${failed} of ${filled.length} failed to save`, T.danger);
+    else toast_(`Pay saved for ${filled.length} reviews 💰`);
   };
   const editReviewerRate = async (id, rate) => {
+    const prev = reviewers.find(r=>r.id===id)?.defaultRate;
     setReviewers(p=>p.map(r=>r.id===id?{...r,defaultRate:rate}:r));
-    await supabase.from("reviewers").update({ default_rate:rate===""||rate==null?null:Number(rate) }).eq("id",id);
+    const { error } = await supabase.from("reviewers").update({ default_rate:rate===""||rate==null?null:Number(rate) }).eq("id",id);
+    if (error) { setReviewers(p=>p.map(r=>r.id===id?{...r,defaultRate:prev}:r)); toast_(`Couldn't save rate: ${error.message}`, T.danger); return; }
     toast_("Rate saved ✓");
   };
   const deleteReview = async id => {
     setReviews(p=>p.filter(r=>r.id!==id)); setDelConfirm(null);
-    await supabase.from("reviews").delete().eq("id",id);
+    const { error } = await supabase.from("reviews").delete().eq("id",id);
+    if (error) { toast_(`Delete may have failed: ${error.message}`, T.danger); return; }
     toast_("Deleted",T.danger);
   };
   const saveBiz = async data => {
@@ -1490,12 +1619,12 @@ export default function App() {
       const merged = {...editBiz,...data};
       setBusinesses(p=>p.map(b=>b.id===editBiz.id?merged:b)); setEditBiz(null);
       const { error } = await supabase.from("businesses").update(toBizRow(merged)).eq("id",merged.id);
-      if (error) { alert("Update error: " + JSON.stringify(error)); return; }
+      if (error) { toast_(`Couldn't save: ${error.message}`, T.danger); return; }
     } else {
       const rec = {...data, id:genId()};
       setBusinesses(p=>[...p,rec]); setAddBiz(false);
       const { error } = await supabase.from("businesses").insert(toBizRow(rec));
-      if (error) { alert("Insert error: " + JSON.stringify(error)); return; }
+      if (error) { setBusinesses(p=>p.filter(b=>b.id!==rec.id)); toast_(`Couldn't save: ${error.message}`, T.danger); return; }
     }
     toast_("Saved ✓");
   };
@@ -1541,12 +1670,25 @@ export default function App() {
       };
       setReviews(p=>[...p,withPay]); // optimistic
       const { error } = await supabase.from("reviews").insert(toReviewRow(withPay));
-      if (error) toast_("Submit failed — check connection", T.danger);
+      if (error) { setReviews(p=>p.filter(x=>x.id!==withPay.id)); toast_(`Submit failed: ${error.message}`, T.danger); }
       else toast_("Logged 🎉");
     };
+    if (showOwnStats) {
+      // Privacy: only this reviewer's own reviews are passed in — never anyone else's data,
+      // never anyone else's pay, and the reviewer never sees what other reviewers earn.
+      return <>
+        <style>{CSS}</style>
+        <ReviewerSelfStats
+          reviewer={rv}
+          reviews={reviews.filter(r=>r.reviewerId===rv.id)}
+          businesses={businesses}
+          onBack={()=>setShowOwnStats(false)}
+        />
+      </>;
+    }
     return <>
       <style>{CSS}</style>
-      <ReviewerPortal reviewer={rv} businesses={businesses} onSubmit={submitReview} onBack={()=>setMode("picker")} />
+      <ReviewerPortal reviewer={rv} businesses={businesses} onSubmit={submitReview} onBack={()=>{setMode("picker");setShowOwnStats(false);}} onShowStats={()=>setShowOwnStats(true)} />
     </>;
   }
 
@@ -1587,7 +1729,7 @@ export default function App() {
       : <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif", paddingBottom:80 }}>
           <div style={{ background:T.surface, borderBottom:`1px solid ${T.border}`, padding:"16px 16px 12px",
             display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
-            <div style={{ fontWeight:900, fontSize:18, color:T.text }}>⭐ The Review Desk</div>
+            <Logo size={32} />
             <div style={{ display:"flex", gap:8 }}>
               {(adminTab==="reviews"||adminTab==="home") && (
                 <button onClick={()=>setAddReview(true)}
