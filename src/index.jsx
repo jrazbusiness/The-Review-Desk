@@ -2,14 +2,14 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
-const ADMIN_PIN = "052702"; // ← change this to your own 6-digit PIN
+const ADMIN_PIN = "052725"; // ← change this to your own 6-digit PIN
 const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
+const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
 // ════════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -36,6 +36,7 @@ const STATUS_LABEL = { live:"Live", taken_down:"Taken Down", replenished:"Replen
 // ════════════════════════════════════════════════════════════════════════════
 //  🖼️  LOGO — paste your hosted logo URL here once uploaded (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
+const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
 const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
 
 // ─── Logo (falls back to emoji+text if the image fails to load) ──────────────
@@ -57,6 +58,7 @@ const fromReviewRow = r => ({
   notes:r.notes||"", date:r.date,
   paidOut:r.paid_out==null?"":String(r.paid_out),
   receivedIn:r.received_in==null?"":String(r.received_in),
+  confirmed:!!r.confirmed,
 });
 const toReviewRow = r => ({
   id:r.id, reviewer_id:r.reviewerId, business_id:r.businessId,
@@ -64,6 +66,7 @@ const toReviewRow = r => ({
   notes:r.notes||"", date:r.date,
   paid_out:r.paidOut===""||r.paidOut==null?null:Number(r.paidOut),
   received_in:r.receivedIn===""||r.receivedIn==null?null:Number(r.receivedIn),
+  confirmed:!!r.confirmed,
 });
 const fromBizRow = b => ({ id:b.id, name:b.name, platform:b.platform, url:b.url||"", emoji:b.emoji||"🏢", defaultPay:b.default_pay==null?"":String(b.default_pay) });
 const toBizRow   = b => ({ id:b.id, name:b.name, platform:b.platform, url:b.url||"", emoji:b.emoji||"🏢", default_pay:b.defaultPay===""||b.defaultPay==null?null:Number(b.defaultPay) });
@@ -278,11 +281,43 @@ function DateDrum({ value, onChange }) {
 // SELF-REGISTRATION — new reviewer creates their own profile
 // ══════════════════════════════════════════════════════════════════════════════
 function SelfRegister({ onDone }) {
-  const [step, setStep]   = useState(0); // 0=name, 1=color
+  const [step, setStep]   = useState(0); // 0=name, 1=color, 2=pin
   const [name, setName]   = useState("");
   const [color, setColor] = useState(PALETTE[Math.floor(Math.random()*PALETTE.length)]);
+  const [pin, setPin]     = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [pinStage, setPinStage] = useState("set"); // set | confirm
+  const [pinError, setPinError] = useState(false);
   const inputRef = useRef(null);
   useEffect(()=>{ if(step===0) inputRef.current?.focus(); },[step]);
+
+  function pressDigit(d) {
+    if (pinStage==="set") {
+      if (pin.length<4) {
+        const next = pin+d;
+        setPin(next);
+        if (next.length===4) setTimeout(()=>setPinStage("confirm"),150);
+      }
+    } else {
+      if (pinConfirm.length<4) {
+        const next = pinConfirm+d;
+        setPinConfirm(next);
+        if (next.length===4) {
+          if (next===pin) {
+            setTimeout(()=>onDone({ id:genId(), name:name.trim(), color, pin }),150);
+          } else {
+            setPinError(true);
+            setTimeout(()=>{ setPinError(false); setPin(""); setPinConfirm(""); setPinStage("set"); },600);
+          }
+        }
+      }
+    }
+  }
+  function backspace() {
+    if (pinStage==="set") setPin(p=>p.slice(0,-1));
+    else setPinConfirm(p=>p.slice(0,-1));
+  }
+  const activeLen = pinStage==="set" ? pin.length : pinConfirm.length;
 
   return (
     <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif",
@@ -315,14 +350,49 @@ function SelfRegister({ onDone }) {
           ))}
         </div>
         <div style={{ width:"100%", maxWidth:340, display:"flex", flexDirection:"column", gap:12 }}>
-          <BigBtn onClick={()=>onDone({ id:genId(), name:name.trim(), color })} color={color}>
-            Create Profile
+          <BigBtn onClick={()=>setStep(2)} color={color}>
+            Continue →
           </BigBtn>
           <button onClick={()=>setStep(0)} style={{ padding:"14px", background:"transparent", border:`1.5px solid ${T.border}`,
             borderRadius:14, color:T.muted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
             ← Back
           </button>
         </div>
+      </>}
+
+      {step===2 && <>
+        <div style={{ fontSize:40, marginBottom:14 }}>🔒</div>
+        <div style={{ fontSize:22, fontWeight:900, color:T.text, marginBottom:4, textAlign:"center" }}>
+          {pinStage==="set" ? "Set a 4-digit PIN" : "Confirm your PIN"}
+        </div>
+        <div style={{ fontSize:13, color:T.muted, marginBottom:28, textAlign:"center", maxWidth:280 }}>
+          {pinStage==="set"
+            ? "This protects your personal stats so only you can view them."
+            : "Enter it one more time to confirm."}
+        </div>
+        <div style={{ display:"flex", gap:14, marginBottom:32, transition:"transform 0.05s", transform:pinError?"translateX(10px)":"none" }}>
+          {[0,1,2,3].map(i=>(
+            <div key={i} style={{ width:14, height:14, borderRadius:"50%",
+              background:pinError?T.danger:(activeLen>i?color:T.border), transition:"background 0.1s" }} />
+          ))}
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, width:"100%", maxWidth:280 }}>
+          {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
+            <button key={i} onClick={()=>{ if(d==="⌫") backspace(); else if(d!=="") pressDigit(d); }}
+              style={{ aspectRatio:"1", borderRadius:16, border:"none", background:d===""?"transparent":T.card,
+                color:d==="⌫"?T.muted:T.text, fontSize:d==="⌫"?22:24, fontWeight:700,
+                cursor:d===""?"default":"pointer", fontFamily:"inherit",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                boxShadow:d===""?"none":"0 2px 8px rgba(0,0,0,0.3)" }}>
+              {d}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>{ setStep(1); setPin(""); setPinConfirm(""); setPinStage("set"); }}
+          style={{ marginTop:24, padding:"10px 18px", background:"transparent", border:"none",
+            color:T.muted, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+          ← Back
+        </button>
       </>}
     </div>
   );
@@ -635,18 +705,103 @@ function ReviewerSelfStats({ reviewer, reviews, businesses, onBack }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// REVIEWER — Stats PIN Gate (protects their personal earnings/review data)
+// ══════════════════════════════════════════════════════════════════════════════
+function StatsPinGate({ reviewer, onUnlock, onCancel, onSetPin }) {
+  const hasPin = !!reviewer.pin;
+  const [stage, setStage] = useState(hasPin ? "enter" : "set"); // enter | set | confirm
+  const [pin, setPin]       = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [error, setError]   = useState(false);
+
+  function pressDigit(d) {
+    if (stage==="enter") {
+      if (pin.length<4) {
+        const next = pin+d; setPin(next);
+        if (next.length===4) {
+          if (next===reviewer.pin) setTimeout(onUnlock,150);
+          else { setError(true); setTimeout(()=>{setError(false);setPin("");},500); }
+        }
+      }
+    } else if (stage==="set") {
+      if (pin.length<4) {
+        const next = pin+d; setPin(next);
+        if (next.length===4) setTimeout(()=>setStage("confirm"),150);
+      }
+    } else {
+      if (newPin.length<4) {
+        const next = newPin+d; setNewPin(next);
+        if (next.length===4) {
+          if (next===pin) { onSetPin(pin); setTimeout(onUnlock,150); }
+          else { setError(true); setTimeout(()=>{setError(false);setPin("");setNewPin("");setStage("set");},500); }
+        }
+      }
+    }
+  }
+  function backspace() {
+    if (stage==="enter"||stage==="set") setPin(p=>p.slice(0,-1));
+    else setNewPin(p=>p.slice(0,-1));
+  }
+  const activeLen = stage==="confirm" ? newPin.length : pin.length;
+
+  const titles = {
+    enter:   "Enter your PIN",
+    set:     "Set a PIN to protect your stats",
+    confirm: "Confirm your PIN",
+  };
+  const subs = {
+    enter:   "Only you can see your earnings and reviews.",
+    set:     "This is new — set a 4-digit PIN so only you can view your stats.",
+    confirm: "Enter it once more to confirm.",
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif",
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"28px 24px" }}>
+      <Avatar name={reviewer.name} color={reviewer.color} size={64} />
+      <div style={{ fontSize:20, fontWeight:900, color:T.text, marginTop:16, marginBottom:4, textAlign:"center" }}>{titles[stage]}</div>
+      <div style={{ fontSize:13, color:T.muted, marginBottom:28, textAlign:"center", maxWidth:280 }}>{subs[stage]}</div>
+      <div style={{ display:"flex", gap:14, marginBottom:32, transition:"transform 0.05s", transform:error?"translateX(10px)":"none" }}>
+        {[0,1,2,3].map(i=>(
+          <div key={i} style={{ width:14, height:14, borderRadius:"50%",
+            background:error?T.danger:(activeLen>i?reviewer.color:T.border), transition:"background 0.1s" }} />
+        ))}
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, width:"100%", maxWidth:280 }}>
+        {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
+          <button key={i} onClick={()=>{ if(d==="⌫") backspace(); else if(d!=="") pressDigit(d); }}
+            style={{ aspectRatio:"1", borderRadius:16, border:"none", background:d===""?"transparent":T.card,
+              color:d==="⌫"?T.muted:T.text, fontSize:d==="⌫"?22:24, fontWeight:700,
+              cursor:d===""?"default":"pointer", fontFamily:"inherit",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              boxShadow:d===""?"none":"0 2px 8px rgba(0,0,0,0.3)" }}>
+            {d}
+          </button>
+        ))}
+      </div>
+      <button onClick={onCancel} style={{ marginTop:24, padding:"10px 18px", background:"transparent", border:"none",
+        color:T.muted, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+        ← Back
+      </button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Review Card
 // ══════════════════════════════════════════════════════════════════════════════
-function ReviewCard({ r, businesses, reviewers, onStatusChange, onPay, onEdit, onDelete }) {
+function ReviewCard({ r, businesses, reviewers, onStatusChange, onPay, onEdit, onDelete, onConfirm }) {
   const [open, setOpen] = useState(false);
   const biz  = businesses.find(b=>b.id===r.businessId);
   const rv   = reviewers.find(x=>x.id===r.reviewerId);
   const margin  = (parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0);
   const needsPay = !r.paidOut && !r.receivedIn;
+  const pending = !r.confirmed;
   const chipB = { padding:"9px 14px", borderRadius:40, border:"none", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" };
 
   return (
-    <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1.5px solid ${needsPay?T.purple+"50":T.border}` }}>
+    <div style={{ background:T.card, borderRadius:16, overflow:"hidden",
+      border:`1.5px solid ${pending?T.warn+"70":(needsPay?T.purple+"50":T.border)}` }}>
       <div onClick={()=>setOpen(o=>!o)} style={{ padding:"14px 16px", cursor:"pointer" }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
           {rv && <div style={{ width:8, height:8, borderRadius:"50%", background:rv.color, flexShrink:0 }} />}
@@ -660,6 +815,7 @@ function ReviewCard({ r, businesses, reviewers, onStatusChange, onPay, onEdit, o
           <span style={{ fontSize:12, color:T.muted }}>· {r.date}</span>
           {rv && <span style={{ fontSize:12, fontWeight:600, color:rv.color }}>· {rv.name.split(" ")[0]}</span>}
         </div>
+        {pending && <div style={{ marginTop:7, fontSize:11, fontWeight:700, color:T.warn }}>⏳ Awaiting your confirmation</div>}
         {needsPay
           ? <div style={{ marginTop:7, fontSize:11, fontWeight:700, color:T.purple }}>💰 Pay not entered yet</div>
           : <div style={{ display:"flex", gap:14, marginTop:7 }}>
@@ -673,6 +829,7 @@ function ReviewCard({ r, businesses, reviewers, onStatusChange, onPay, onEdit, o
         <div style={{ padding:"0 16px 14px", borderTop:`1px solid ${T.border}` }}>
           {r.notes && <div style={{ fontSize:13, color:T.muted, padding:"12px 0 8px", lineHeight:1.5 }}>{r.notes}</div>}
           <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:6 }}>
+            {pending && <button onClick={()=>onConfirm(r.id)} style={{ ...chipB, background:`${T.accent}25`, color:T.accent }}>✓ Confirm — Looks Legit</button>}
             {r.status==="live"        && <button onClick={()=>onStatusChange(r.id,"taken_down")}  style={{ ...chipB, background:`${T.warn}20`,   color:T.warn   }}>Mark Taken Down</button>}
             {r.status==="taken_down"  && <button onClick={()=>onStatusChange(r.id,"replenished")} style={{ ...chipB, background:`${T.info}20`,   color:T.info   }}>Mark Replenished</button>}
             {r.status==="replenished" && <button onClick={()=>onStatusChange(r.id,"live")}        style={{ ...chipB, background:`${T.accent}20`, color:T.accent }}>Set Live</button>}
@@ -693,7 +850,7 @@ function ReviewForm({ initial, reviewers, businesses, onSave, onClose }) {
   const [form, setForm] = useState(initial || {
     date:today(), platform:"Google", clientName:"",
     businessId:businesses[0]?.id||"", reviewerId:reviewers[0]?.id||"",
-    paidOut:"", receivedIn:"", notes:"", status:"live"
+    paidOut:"", receivedIn:"", notes:"", status:"live", confirmed:true
   });
   const s = k => v => setForm(f=>({...f,[k]:v}));
   const valid = form.clientName.trim() && form.businessId && form.reviewerId;
@@ -968,7 +1125,7 @@ function exportPaySummary(reviews, reviewers) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Overview Tab (with charts + notifications + export)
 // ══════════════════════════════════════════════════════════════════════════════
-function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay, newCount, onClearNew }) {
+function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay, newCount, onClearNew, onConfirm }) {
   const g = useMemo(()=>{
     const live=reviews.filter(r=>r.status==="live").length;
     const down=reviews.filter(r=>r.status==="taken_down").length;
@@ -976,7 +1133,8 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay,
     const paid=reviews.reduce((s,r)=>s+(parseFloat(r.paidOut)||0),0);
     const rec=reviews.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0),0);
     const unp=reviews.filter(r=>!r.paidOut&&!r.receivedIn).length;
-    return{live,down,rep,paid,rec,net:rec-paid,unp,total:reviews.length};
+    const pending=reviews.filter(r=>!r.confirmed);
+    return{live,down,rep,paid,rec,net:rec-paid,unp,total:reviews.length,pending};
   },[reviews]);
 
   // Weekly net profit chart (last 8 weeks)
@@ -1006,6 +1164,43 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay,
 
   return (
     <div style={{ padding:"18px 16px 24px" }}>
+
+      {/* Pending confirmation — fraud check checkpoint */}
+      {g.pending.length>0 && (
+        <div style={{ background:`${T.warn}18`, border:`1.5px solid ${T.warn}50`, borderRadius:14, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+            <span style={{ fontSize:20 }}>⏳</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700, color:T.warn, fontSize:14 }}>{g.pending.length} review{g.pending.length!==1?"s":""} awaiting confirmation</div>
+              <div style={{ fontSize:12, color:T.muted }}>Check these aren't fraudulent before they count</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {g.pending.slice(0,3).map(r=>{
+              const rv = reviewers.find(x=>x.id===r.reviewerId);
+              const biz = businesses.find(x=>x.id===r.businessId);
+              return (
+                <div key={r.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"8px 10px", background:T.card, borderRadius:10 }}>
+                  <div>
+                    <span style={{ fontWeight:600, fontSize:13, color:T.text }}>{r.clientName}</span>
+                    <span style={{ fontSize:11, color:T.muted, marginLeft:6 }}>{rv?.name.split(" ")[0]} · {biz?.name}</span>
+                  </div>
+                  <button onClick={()=>onConfirm(r.id)}
+                    style={{ padding:"5px 12px", background:`${T.accent}25`, color:T.accent, border:"none", borderRadius:8, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    ✓ Confirm
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {g.pending.length>3 && (
+            <div style={{ fontSize:11, color:T.muted, marginTop:8, textAlign:"center" }}>
+              +{g.pending.length-3} more in the Reviews tab
+            </div>
+          )}
+        </div>
+      )}
 
       {/* New review notification banner */}
       {newCount>0 && (
@@ -1126,7 +1321,7 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay,
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Reviews Tab (with date range filter)
 // ══════════════════════════════════════════════════════════════════════════════
-function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onEdit, onDelete }) {
+function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onEdit, onDelete, onConfirm }) {
   const [filter,    setFilter]    = useState("all");
   const [search,    setSearch]    = useState("");
   const [dateFrom,  setDateFrom]  = useState("");
@@ -1134,12 +1329,14 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
   const [showDates, setShowDates] = useState(false);
 
   const filtered = useMemo(()=>{
-    let l = filter==="all" ? reviews : reviews.filter(r=>r.status===filter);
+    let l = filter==="all" ? reviews : filter==="pending" ? reviews.filter(r=>!r.confirmed) : reviews.filter(r=>r.status===filter);
     if (search.trim()) { const q=search.toLowerCase(); l=l.filter(r=>r.clientName.toLowerCase().includes(q)||(r.notes||"").toLowerCase().includes(q)); }
     if (dateFrom) l = l.filter(r=>r.date >= dateFrom);
     if (dateTo)   l = l.filter(r=>r.date <= dateTo);
     return [...l].sort((a,b)=>new Date(b.date)-new Date(a.date));
   },[reviews,filter,search,dateFrom,dateTo]);
+
+  const pendingCount = reviews.filter(r=>!r.confirmed).length;
 
   const net = filtered.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0),0);
   const hasDateFilter = dateFrom || dateTo;
@@ -1196,10 +1393,10 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
 
       {/* Status filter chips */}
       <div style={{ display:"flex", gap:8, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
-        {[{v:"all",l:"All"},{v:"live",l:"✅ Live"},{v:"taken_down",l:"⚠️ Down"},{v:"replenished",l:"🔁 Replenished"}].map(o=>(
+        {[{v:"all",l:"All"},{v:"pending",l:`⏳ Pending${pendingCount>0?` (${pendingCount})`:""}`},{v:"live",l:"✅ Live"},{v:"taken_down",l:"⚠️ Down"},{v:"replenished",l:"🔁 Replenished"}].map(o=>(
           <button key={o.v} onClick={()=>setFilter(o.v)}
-            style={{ padding:"8px 14px", borderRadius:40, border:`1.5px solid ${filter===o.v?T.accent:T.border}`,
-              background:filter===o.v?`${T.accent}15`:"transparent", color:filter===o.v?T.accent:T.muted,
+            style={{ padding:"8px 14px", borderRadius:40, border:`1.5px solid ${filter===o.v?(o.v==="pending"?T.warn:T.accent):T.border}`,
+              background:filter===o.v?`${o.v==="pending"?T.warn:T.accent}15`:"transparent", color:filter===o.v?(o.v==="pending"?T.warn:T.accent):T.muted,
               fontWeight:filter===o.v?700:500, fontSize:13, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
             {o.l}
           </button>
@@ -1212,7 +1409,7 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
               {filtered.map(r=>(
                 <ReviewCard key={r.id} r={r} businesses={businesses} reviewers={reviewers}
-                  onStatusChange={onStatusChange} onPay={onPay} onEdit={onEdit} onDelete={onDelete} />
+                  onStatusChange={onStatusChange} onPay={onPay} onEdit={onEdit} onDelete={onDelete} onConfirm={onConfirm} />
               ))}
             </div>
             <div style={{ marginTop:14, padding:"14px 16px", background:T.card, borderRadius:14, border:`1px solid ${T.border}` }}>
@@ -1341,7 +1538,7 @@ function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditRevie
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Reviewer Detail
 // ══════════════════════════════════════════════════════════════════════════════
-function ReviewerDetail({ reviewer, reviews, businesses, onBack, onStatusChange, onPay, onEdit, onDelete }) {
+function ReviewerDetail({ reviewer, reviews, businesses, onBack, onStatusChange, onPay, onEdit, onDelete, onConfirm }) {
   const [filter, setFilter] = useState("all");
   const stats = useMemo(()=>{
     const live=reviews.filter(r=>r.status==="live").length;
@@ -1349,9 +1546,10 @@ function ReviewerDetail({ reviewer, reviews, businesses, onBack, onStatusChange,
     const paid=reviews.reduce((s,r)=>s+(parseFloat(r.paidOut)||0),0);
     const rec=reviews.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0),0);
     const unp=reviews.filter(r=>!r.paidOut&&!r.receivedIn).length;
-    return{live,down,paid,rec,net:rec-paid,unp};
+    const pending=reviews.filter(r=>!r.confirmed).length;
+    return{live,down,paid,rec,net:rec-paid,unp,pending};
   },[reviews]);
-  const filtered=useMemo(()=>[...( filter==="all"?reviews:reviews.filter(r=>r.status===filter))].sort((a,b)=>new Date(b.date)-new Date(a.date)),[reviews,filter]);
+  const filtered=useMemo(()=>[...( filter==="all"?reviews:filter==="pending"?reviews.filter(r=>!r.confirmed):reviews.filter(r=>r.status===filter))].sort((a,b)=>new Date(b.date)-new Date(a.date)),[reviews,filter]);
 
   return (
     <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif" }}>
@@ -1372,12 +1570,13 @@ function ReviewerDetail({ reviewer, reviews, businesses, onBack, onStatusChange,
             </div>
           ))}
         </div>
-        {stats.down>0 && <div style={{ marginTop:8, padding:"8px 12px", background:`${T.warn}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.warn }}>⚠️ {stats.down} taken down</div>}
+        {stats.pending>0 && <div style={{ marginTop:8, padding:"8px 12px", background:`${T.warn}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.warn }}>⏳ {stats.pending} awaiting confirmation</div>}
+        {stats.down>0 && <div style={{ marginTop:6, padding:"8px 12px", background:`${T.warn}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.warn }}>⚠️ {stats.down} taken down</div>}
         {stats.unp>0  && <div style={{ marginTop:6, padding:"8px 12px", background:`${T.purple}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.purple }}>💰 {stats.unp} need pay entered</div>}
       </div>
       <div style={{ padding:"14px 16px 80px" }}>
         <div style={{ display:"flex", gap:8, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
-          {[{v:"all",l:"All"},{v:"live",l:"✅ Live"},{v:"taken_down",l:"⚠️ Down"},{v:"replenished",l:"🔁 Replenished"}].map(o=>(
+          {[{v:"all",l:"All"},{v:"pending",l:`⏳ Pending${stats.pending>0?` (${stats.pending})`:""}`},{v:"live",l:"✅ Live"},{v:"taken_down",l:"⚠️ Down"},{v:"replenished",l:"🔁 Replenished"}].map(o=>(
             <button key={o.v} onClick={()=>setFilter(o.v)}
               style={{ padding:"8px 14px", borderRadius:40, border:`1.5px solid ${filter===o.v?reviewer.color:T.border}`,
                 background:filter===o.v?`${reviewer.color}20`:"transparent", color:filter===o.v?reviewer.color:T.muted,
@@ -1389,7 +1588,7 @@ function ReviewerDetail({ reviewer, reviews, businesses, onBack, onStatusChange,
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {filtered.map(r=>(
             <ReviewCard key={r.id} r={r} businesses={businesses} reviewers={[reviewer]}
-              onStatusChange={onStatusChange} onPay={onPay} onEdit={onEdit} onDelete={onDelete} />
+              onStatusChange={onStatusChange} onPay={onPay} onEdit={onEdit} onDelete={onDelete} onConfirm={onConfirm} />
           ))}
           {filtered.length===0 && <div style={{ textAlign:"center", padding:"36px 0", color:T.muted, fontSize:14 }}>No reviews here.</div>}
         </div>
@@ -1454,6 +1653,7 @@ export default function App() {
   const [mode,      setMode]      = useState("picker");
   const [portalId,  setPortalId]  = useState(null);
   const [showOwnStats, setShowOwnStats] = useState(false);
+  const [statsUnlocked, setStatsUnlocked] = useState(false);
   const [adminTab,  setAdminTab]  = useState("home");
   const [detailRvId,setDetailRvId]= useState(null);
   const [lastSeenCount, setLastSeenCount] = useState(null);
@@ -1493,7 +1693,7 @@ export default function App() {
           supabase.from("businesses").select("*").order("created_at",{ascending:true}),
         ]);
         if (!active) return;
-        if (rvRes.data)  setReviewers(rvRes.data.map(r=>({id:r.id,name:r.name,color:r.color,note:r.note||"",defaultRate:r.default_rate==null?"":String(r.default_rate)})));
+        if (rvRes.data)  setReviewers(rvRes.data.map(r=>({id:r.id,name:r.name,color:r.color,note:r.note||"",defaultRate:r.default_rate==null?"":String(r.default_rate),pin:r.pin||""})));
         if (reRes.data)  setReviews(reRes.data.map(fromReviewRow));
         if (bizRes.data) setBusinesses(bizRes.data.map(fromBizRow));
       } catch(e) {
@@ -1532,7 +1732,8 @@ export default function App() {
     setReviewers(p=>[...p,rv]); // optimistic
     const { error } = await supabase.from("reviewers").insert({
       id:rv.id, name:rv.name, color:rv.color, note:rv.note||"",
-      default_rate:rv.defaultRate===""||rv.defaultRate==null?null:Number(rv.defaultRate)
+      default_rate:rv.defaultRate===""||rv.defaultRate==null?null:Number(rv.defaultRate),
+      pin:rv.pin||null
     });
     if (error) { setReviewers(p=>p.filter(r=>r.id!==rv.id)); toast_(`Couldn't save profile: ${error.message}`, T.danger); }
     else toast_("Profile created ✓");
@@ -1607,6 +1808,17 @@ export default function App() {
     if (error) { setReviewers(p=>p.map(r=>r.id===id?{...r,defaultRate:prev}:r)); toast_(`Couldn't save rate: ${error.message}`, T.danger); return; }
     toast_("Rate saved ✓");
   };
+  const setReviewerPin = async (id, pin) => {
+    setReviewers(p=>p.map(r=>r.id===id?{...r,pin}:r));
+    const { error } = await supabase.from("reviewers").update({ pin }).eq("id",id);
+    if (error) toast_(`Couldn't save PIN: ${error.message}`, T.danger);
+  };
+  const confirmReview = async id => {
+    setReviews(p=>p.map(r=>r.id===id?{...r,confirmed:true}:r));
+    const { error } = await supabase.from("reviews").update({ confirmed:true }).eq("id",id);
+    if (error) { setReviews(p=>p.map(r=>r.id===id?{...r,confirmed:false}:r)); toast_(`Couldn't confirm: ${error.message}`, T.danger); return; }
+    toast_("Confirmed ✓");
+  };
   const deleteReview = async id => {
     setReviews(p=>p.filter(r=>r.id!==id)); setDelConfirm(null);
     const { error } = await supabase.from("reviews").delete().eq("id",id);
@@ -1666,6 +1878,7 @@ export default function App() {
         ...r,
         paidOut: rv2?.defaultRate || "",
         receivedIn: biz2?.defaultPay || "",
+        confirmed: false, // reviewer submissions sit pending until admin confirms — guards against fraud
       };
       setReviews(p=>[...p,withPay]); // optimistic
       const { error } = await supabase.from("reviews").insert(toReviewRow(withPay));
@@ -1673,6 +1886,17 @@ export default function App() {
       else toast_("Logged 🎉");
     };
     if (showOwnStats) {
+      if (!statsUnlocked) {
+        return <>
+          <style>{CSS}</style>
+          <StatsPinGate
+            reviewer={rv}
+            onUnlock={()=>setStatsUnlocked(true)}
+            onCancel={()=>setShowOwnStats(false)}
+            onSetPin={pin=>setReviewerPin(rv.id, pin)}
+          />
+        </>;
+      }
       // Privacy: only this reviewer's own reviews are passed in — never anyone else's data,
       // never anyone else's pay, and the reviewer never sees what other reviewers earn.
       return <>
@@ -1681,13 +1905,13 @@ export default function App() {
           reviewer={rv}
           reviews={reviews.filter(r=>r.reviewerId===rv.id)}
           businesses={businesses}
-          onBack={()=>setShowOwnStats(false)}
+          onBack={()=>{setShowOwnStats(false);setStatsUnlocked(false);}}
         />
       </>;
     }
     return <>
       <style>{CSS}</style>
-      <ReviewerPortal reviewer={rv} businesses={businesses} onSubmit={submitReview} onBack={()=>{setMode("picker");setShowOwnStats(false);}} onShowStats={()=>setShowOwnStats(true)} />
+      <ReviewerPortal reviewer={rv} businesses={businesses} onSubmit={submitReview} onBack={()=>{setMode("picker");setShowOwnStats(false);setStatsUnlocked(false);}} onShowStats={()=>setShowOwnStats(true)} />
     </>;
   }
 
@@ -1724,6 +1948,7 @@ export default function App() {
           onPay={r=>setPaySheet(r)}
           onEdit={r=>setEditReview(r)}
           onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})}
+          onConfirm={confirmReview}
         />
       : <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif", paddingBottom:80 }}>
           <div style={{ background:T.surface, borderBottom:`1px solid ${T.border}`, padding:"16px 16px 12px",
@@ -1744,10 +1969,10 @@ export default function App() {
           </div>
 
           <div style={{ height:"calc(100vh - 112px)", overflowY:"auto" }}>
-            {adminTab==="home"    && <HomeTab reviewers={reviewers} reviews={reviews} businesses={businesses} onSelectReviewer={id=>setDetailRvId(id)} onBatchPay={()=>setBatchPayOpen(true)} newCount={newCount} onClearNew={clearNewCount} />}
+            {adminTab==="home"    && <HomeTab reviewers={reviewers} reviews={reviews} businesses={businesses} onSelectReviewer={id=>setDetailRvId(id)} onBatchPay={()=>setBatchPayOpen(true)} newCount={newCount} onClearNew={clearNewCount} onConfirm={confirmReview} />}
             {adminTab==="reviews" && <ReviewsTab reviews={reviews} reviewers={reviewers} businesses={businesses}
               onStatusChange={statusChange} onPay={r=>setPaySheet(r)} onEdit={r=>setEditReview(r)}
-              onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})} />}
+              onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})} onConfirm={confirmReview} />}
             {adminTab==="team"    && <TeamTab reviewers={reviewers} reviews={reviews} businesses={businesses}
               onDeleteReviewer={id=>setDelConfirm({type:"reviewer",id,label:"this reviewer and all their data"})}
               onEditReviewerRate={editReviewerRate}
