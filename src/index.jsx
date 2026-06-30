@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 // ════════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
-const ADMIN_PIN = "052725"; // ← change this to your own 6-digit PIN
+const ADMIN_PIN = "052702"; // ← change this to your own 6-digit PIN
 const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
 const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
 // ════════════════════════════════════════════════════════════════════════════
