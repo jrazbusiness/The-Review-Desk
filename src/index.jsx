@@ -36,8 +36,6 @@ const STATUS_LABEL = { live:"Live", taken_down:"Taken Down", replenished:"Replen
 // ════════════════════════════════════════════════════════════════════════════
 //  🖼️  LOGO — paste your hosted logo URL here once uploaded (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
-const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
-const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
 
 // ─── Logo (falls back to emoji+text if the image fails to load) ──────────────
 function Logo({ size=44, full=false }) {
