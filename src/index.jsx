@@ -2,15 +2,14 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-
 // ════════════════════════════════════════════════════════════════════════════
 //  ⚙️  SETUP — paste your two Supabase keys here (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://wsdtukcjgxnrrnxccjom.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzZHR1a2NqZ3hucnJueGNjam9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MTAyMjEsImV4cCI6MjA5ODI4NjIyMX0.eeF6el_wAUs9wh2ubTmEBpjvF-TO82Pg3FdJWfO4DEw";
-const ADMIN_PIN = "052702"; // ← change this to your own 6-digit PIN
-const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
-const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
+const ADMIN_PIN = "052702";
+const LOGO_URL = "/logo-mark.png";
+const LOGO_URL_FULL = "/logo-full.png";
 // ════════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -37,6 +36,8 @@ const STATUS_LABEL = { live:"Live", taken_down:"Taken Down", replenished:"Replen
 // ════════════════════════════════════════════════════════════════════════════
 //  🖼️  LOGO — paste your hosted logo URL here once uploaded (see setup guide)
 // ════════════════════════════════════════════════════════════════════════════
+const LOGO_URL = "/logo-mark.png"; // small mark, used in headers
+const LOGO_URL_FULL = "/logo-full.png"; // full logo with text, used on landing/PIN screens
 
 // ─── Logo (falls back to emoji+text if the image fails to load) ──────────────
 function Logo({ size=44, full=false }) {
@@ -1124,7 +1125,7 @@ function exportPaySummary(reviews, reviewers) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Overview Tab (with charts + notifications + export)
 // ══════════════════════════════════════════════════════════════════════════════
-function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay, newCount, onClearNew, onConfirm }) {
+function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onSelectBusiness, onBatchPay, newCount, onClearNew, onConfirm }) {
   const g = useMemo(()=>{
     const live=reviews.filter(r=>r.status==="live").length;
     const down=reviews.filter(r=>r.status==="taken_down").length;
@@ -1313,6 +1314,43 @@ function HomeTab({ reviewers, reviews, businesses, onSelectReviewer, onBatchPay,
             })}
           </div>
       }
+
+      {/* Business pages quick access */}
+      {businesses.length > 0 && (
+        <>
+          <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, margin:"20px 0 10px" }}>Business Pages</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {businesses.map(b=>{
+              const myRevs=reviews.filter(r=>r.businessId===b.id);
+              const myLive=myRevs.filter(r=>r.status==="live").length;
+              const myDown=myRevs.filter(r=>r.status==="taken_down").length;
+              const myPend=myRevs.filter(r=>!r.confirmed).length;
+              const myPaid=myRevs.reduce((s,r)=>s+(parseFloat(r.paidOut)||0),0);
+              const myRec=myRevs.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0),0);
+              return (
+                <button key={b.id} onClick={()=>onSelectBusiness(b.id)}
+                  style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 16px", background:T.card,
+                    border:`1.5px solid ${T.border}`, borderRadius:16, cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:`${T.accent}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{b.emoji||"🏢"}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:15, color:T.text }}>{b.name}</div>
+                    <div style={{ display:"flex", gap:10, marginTop:5, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:12, color:T.accent, fontWeight:700 }}>{myLive} live</span>
+                      {myDown>0 && <span style={{ fontSize:12, color:T.warn,   fontWeight:700 }}>⚠️ {myDown} down</span>}
+                      {myPend>0 && <span style={{ fontSize:12, color:T.warn,   fontWeight:700 }}>⏳ {myPend} pending</span>}
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:15, fontWeight:800, color:myRec-myPaid>=0?T.accent:T.danger }}>{fmt(myRec-myPaid)}</div>
+                    <div style={{ fontSize:11, color:T.muted }}>net</div>
+                  </div>
+                  <div style={{ color:T.muted, fontSize:18 }}>›</div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1428,7 +1466,7 @@ function ReviewsTab({ reviews, reviewers, businesses, onStatusChange, onPay, onE
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN — Team Tab (reviewers list + business pages, admin-only biz creation)
 // ══════════════════════════════════════════════════════════════════════════════
-function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditReviewerRate, onEditReviewerProfile, onAddBusiness, onEditBusiness, onDeleteBusiness }) {
+function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditReviewerRate, onEditReviewerProfile, onAddBusiness, onEditBusiness, onDeleteBusiness, onSelectBusiness }) {
   const [editRateRv, setEditRateRv] = useState(null);
   const [rateVal,    setRateVal]    = useState("");
   const [editProfileRv, setEditProfileRv] = useState(null);
@@ -1543,23 +1581,176 @@ function TeamTab({ reviewers, reviews, businesses, onDeleteReviewer, onEditRevie
           </div>
         : <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {businesses.map(b=>{
-              const ct=reviews.filter(r=>r.businessId===b.id).length;
+              const myRevs=reviews.filter(r=>r.businessId===b.id);
+              const ct=myRevs.length;
+              const myDown=myRevs.filter(r=>r.status==="taken_down").length;
+              const myPending=myRevs.filter(r=>!r.confirmed).length;
+              const myNet=myRevs.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0),0);
               return (
-                <div key={b.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", background:T.card, border:`1px solid ${T.border}`, borderRadius:14 }}>
-                  <div style={{ width:42, height:42, borderRadius:10, background:`${T.accent}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{b.emoji||"🏢"}</div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{b.name}</div>
-                    <div style={{ fontSize:12, color:T.muted }}>{b.platform} · {ct} review{ct!==1?"s":""}</div>
-                  </div>
-                  <div style={{ display:"flex", gap:6 }}>
-                    <button onClick={()=>onEditBusiness(b)} style={{ padding:"7px 10px", background:T.surface, color:T.muted, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
-                    <button onClick={()=>onDeleteBusiness(b.id, ct)} style={{ padding:"7px 10px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                <div key={b.id} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, overflow:"hidden" }}>
+                  <button onClick={()=>onSelectBusiness(b.id)}
+                    style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"14px 16px",
+                      background:"transparent", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit" }}>
+                    <div style={{ width:46, height:46, borderRadius:12, background:`${T.accent}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>{b.emoji||"🏢"}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, fontSize:15, color:T.text }}>{b.name}</div>
+                      <div style={{ display:"flex", gap:10, marginTop:4, flexWrap:"wrap" }}>
+                        <span style={{ fontSize:12, color:T.accent, fontWeight:700 }}>{ct} review{ct!==1?"s":""}</span>
+                        {myDown>0    && <span style={{ fontSize:12, color:T.warn,   fontWeight:700 }}>⚠️ {myDown} down</span>}
+                        {myPending>0 && <span style={{ fontSize:12, color:T.warn,   fontWeight:700 }}>⏳ {myPending} pending</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:15, fontWeight:800, color:myNet>=0?T.accent:T.danger }}>{fmt(myNet)}</div>
+                      <div style={{ fontSize:11, color:T.muted }}>net</div>
+                    </div>
+                    <div style={{ color:T.muted, fontSize:18 }}>›</div>
+                  </button>
+                  <div style={{ display:"flex", gap:6, padding:"0 16px 12px", borderTop:`1px solid ${T.border}` }} onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>onEditBusiness(b)} style={{ flex:1, padding:"7px 10px", background:T.surface, color:T.muted, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
+                    <button onClick={()=>onDeleteBusiness(b.id, ct)} style={{ padding:"7px 14px", background:`${T.danger}15`, color:T.danger, border:"none", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Remove</button>
                   </div>
                 </div>
               );
             })}
           </div>
       }
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMIN — Business Detail (all reviews for a specific business page)
+// ══════════════════════════════════════════════════════════════════════════════
+function BusinessDetail({ business, reviews, reviewers, businesses, onBack, onStatusChange, onPay, onEdit, onDelete, onConfirm }) {
+  const [filter, setFilter] = useState("all");
+
+  const stats = useMemo(()=>{
+    const live      = reviews.filter(r=>r.status==="live").length;
+    const down      = reviews.filter(r=>r.status==="taken_down").length;
+    const rep       = reviews.filter(r=>r.status==="replenished").length;
+    const pending   = reviews.filter(r=>!r.confirmed).length;
+    const paid      = reviews.reduce((s,r)=>s+(parseFloat(r.paidOut)||0),0);
+    const rec       = reviews.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0),0);
+    const unp       = reviews.filter(r=>!r.paidOut&&!r.receivedIn).length;
+
+    // Per-reviewer breakdown
+    const byReviewer = {};
+    reviews.forEach(r=>{
+      if (!byReviewer[r.reviewerId]) byReviewer[r.reviewerId]={count:0,margin:0};
+      byReviewer[r.reviewerId].count++;
+      byReviewer[r.reviewerId].margin += (parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0);
+    });
+
+    return { live, down, rep, pending, paid, rec, net:rec-paid, unp, byReviewer };
+  },[reviews]);
+
+  const filtered = useMemo(()=>{
+    let list = filter==="all" ? reviews
+      : filter==="pending" ? reviews.filter(r=>!r.confirmed)
+      : reviews.filter(r=>r.status===filter);
+    return [...list].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  },[reviews,filter]);
+
+  return (
+    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'Inter','Segoe UI',sans-serif" }}>
+      {/* Header */}
+      <div style={{ background:T.surface, borderBottom:`1px solid ${T.border}`, padding:"16px 16px 14px" }}>
+        <button onClick={onBack} style={{ background:"transparent", border:"none", color:T.muted, fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit", padding:"0 0 10px" }}>‹ Back</button>
+        <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:14 }}>
+          <div style={{ width:52, height:52, borderRadius:14, background:`${T.accent}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0 }}>
+            {business.emoji||"🏢"}
+          </div>
+          <div>
+            <div style={{ fontWeight:900, fontSize:20, color:T.text }}>{business.name}</div>
+            <div style={{ fontSize:13, color:T.muted }}>{business.platform}{business.url?` · ${business.url}`:""}</div>
+          </div>
+        </div>
+
+        {/* Stat row */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:10 }}>
+          {[
+            {v:stats.live,    l:"Live",     c:T.accent},
+            {v:fmt(stats.rec),l:"Received", c:T.accent},
+            {v:fmt(stats.net),l:"Net",      c:stats.net>=0?T.accent:T.danger},
+          ].map(x=>(
+            <div key={x.l} style={{ background:T.card, borderRadius:10, padding:"10px 12px", textAlign:"center" }}>
+              <div style={{ fontSize:16, fontWeight:900, color:x.c }}>{x.v}</div>
+              <div style={{ fontSize:10, color:T.muted, fontWeight:600 }}>{x.l}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Alert bars */}
+        {stats.pending>0 && <div style={{ marginBottom:6, padding:"8px 12px", background:`${T.warn}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.warn }}>⏳ {stats.pending} awaiting confirmation</div>}
+        {stats.down>0    && <div style={{ marginBottom:6, padding:"8px 12px", background:`${T.warn}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.warn }}>⚠️ {stats.down} taken down</div>}
+        {stats.unp>0     && <div style={{ marginBottom:6, padding:"8px 12px", background:`${T.purple}18`, borderRadius:10, fontSize:13, fontWeight:700, color:T.purple }}>💰 {stats.unp} need pay entered</div>}
+
+        {/* Per-reviewer breakdown */}
+        {Object.keys(stats.byReviewer).length > 1 && (
+          <div style={{ marginTop:4, background:T.card, borderRadius:10, overflow:"hidden" }}>
+            <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:T.muted, padding:"10px 12px 6px" }}>Reviewers on this page</div>
+            {Object.entries(stats.byReviewer).map(([rvId,d])=>{
+              const rv = reviewers.find(r=>r.id===rvId);
+              if (!rv) return null;
+              return (
+                <div key={rvId} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderTop:`1px solid ${T.border}` }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:rv.color, flexShrink:0 }} />
+                  <div style={{ flex:1, fontSize:13, fontWeight:600, color:T.text }}>{rv.name}</div>
+                  <div style={{ fontSize:12, color:T.muted }}>{d.count} review{d.count!==1?"s":""}</div>
+                  <div style={{ fontSize:13, fontWeight:800, color:d.margin>=0?T.accent:T.danger }}>{fmt(d.margin)}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Review list */}
+      <div style={{ padding:"14px 16px 80px" }}>
+        <div style={{ display:"flex", gap:8, marginBottom:14, overflowX:"auto", paddingBottom:2 }}>
+          {[
+            {v:"all",        l:"All"},
+            {v:"pending",    l:`⏳ Pending${stats.pending>0?` (${stats.pending})`:""}`},
+            {v:"live",       l:"✅ Live"},
+            {v:"taken_down", l:"⚠️ Down"},
+            {v:"replenished",l:"🔁 Replenished"},
+          ].map(o=>(
+            <button key={o.v} onClick={()=>setFilter(o.v)}
+              style={{ padding:"8px 14px", borderRadius:40, border:`1.5px solid ${filter===o.v?T.accent:T.border}`,
+                background:filter===o.v?`${T.accent}15`:"transparent", color:filter===o.v?T.accent:T.muted,
+                fontWeight:filter===o.v?700:500, fontSize:13, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+
+        {filtered.length===0
+          ? <div style={{ textAlign:"center", padding:"36px 0", color:T.muted, fontSize:14 }}>No reviews match.</div>
+          : <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {filtered.map(r=>(
+                <ReviewCard key={r.id} r={r} businesses={businesses} reviewers={reviewers}
+                  onStatusChange={onStatusChange} onPay={onPay} onEdit={onEdit} onDelete={onDelete} onConfirm={onConfirm} />
+              ))}
+            </div>
+        }
+
+        {/* Footer totals */}
+        {filtered.length>0 && (
+          <div style={{ marginTop:14, padding:"12px 16px", background:T.card, borderRadius:14, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:11, color:T.muted, marginBottom:8, fontWeight:600 }}>{filtered.length} review{filtered.length!==1?"s":""} shown</div>
+            <div style={{ display:"flex", gap:20 }}>
+              <div><div style={{ fontSize:10, color:T.muted }}>PAID OUT</div><div style={{ fontWeight:800, color:T.danger }}>{fmt(filtered.reduce((s,r)=>s+(parseFloat(r.paidOut)||0),0))}</div></div>
+              <div><div style={{ fontSize:10, color:T.muted }}>RECEIVED</div><div style={{ fontWeight:800, color:T.accent }}>{fmt(filtered.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0),0))}</div></div>
+              <div><div style={{ fontSize:10, color:T.muted }}>NET</div>
+                <div style={{ fontWeight:800, color:(()=>{const n=filtered.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0),0);return n>=0?T.info:T.danger;})() }}>
+                  {fmt(filtered.reduce((s,r)=>s+(parseFloat(r.receivedIn)||0)-(parseFloat(r.paidOut)||0),0))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1684,7 +1875,8 @@ export default function App() {
   const [showOwnStats, setShowOwnStats] = useState(false);
   const [statsUnlocked, setStatsUnlocked] = useState(false);
   const [adminTab,  setAdminTab]  = useState("home");
-  const [detailRvId,setDetailRvId]= useState(null);
+  const [detailRvId, setDetailRvId]  = useState(null);
+  const [detailBizId, setDetailBizId] = useState(null);
   const [lastSeenCount, setLastSeenCount] = useState(null);
   const [newCount, setNewCount] = useState(0);
 
@@ -1963,11 +2155,25 @@ export default function App() {
   </>;
 
   // ── Admin ────────────────────────────────────────────────────────────────
-  const detailRv = reviewers.find(r=>r.id===detailRvId);
+  const detailRv  = reviewers.find(r=>r.id===detailRvId);
+  const detailBiz = businesses.find(b=>b.id===detailBizId);
   return <>
     <style>{CSS}</style>
 
-    {detailRv
+    {detailBiz
+      ? <BusinessDetail
+          business={detailBiz}
+          reviews={reviews.filter(r=>r.businessId===detailBizId)}
+          reviewers={reviewers}
+          businesses={businesses}
+          onBack={()=>setDetailBizId(null)}
+          onStatusChange={statusChange}
+          onPay={r=>setPaySheet(r)}
+          onEdit={r=>setEditReview(r)}
+          onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})}
+          onConfirm={confirmReview}
+        />
+    : detailRv
       ? <ReviewerDetail
           reviewer={detailRv}
           reviews={reviews.filter(r=>r.reviewerId===detailRvId)}
@@ -1998,7 +2204,7 @@ export default function App() {
           </div>
 
           <div style={{ height:"calc(100vh - 112px)", overflowY:"auto" }}>
-            {adminTab==="home"    && <HomeTab reviewers={reviewers} reviews={reviews} businesses={businesses} onSelectReviewer={id=>setDetailRvId(id)} onBatchPay={()=>setBatchPayOpen(true)} newCount={newCount} onClearNew={clearNewCount} onConfirm={confirmReview} />}
+            {adminTab==="home"    && <HomeTab reviewers={reviewers} reviews={reviews} businesses={businesses} onSelectReviewer={id=>setDetailRvId(id)} onSelectBusiness={id=>setDetailBizId(id)} onBatchPay={()=>setBatchPayOpen(true)} newCount={newCount} onClearNew={clearNewCount} onConfirm={confirmReview} />}
             {adminTab==="reviews" && <ReviewsTab reviews={reviews} reviewers={reviewers} businesses={businesses}
               onStatusChange={statusChange} onPay={r=>setPaySheet(r)} onEdit={r=>setEditReview(r)}
               onDelete={id=>setDelConfirm({type:"review",id,label:"this review"})} onConfirm={confirmReview} />}
@@ -2007,7 +2213,8 @@ export default function App() {
               onEditReviewerRate={editReviewerRate}
               onEditReviewerProfile={editReviewerProfile}
               onAddBusiness={()=>setAddBiz(true)} onEditBusiness={b=>setEditBiz(b)}
-              onDeleteBusiness={(id,ct)=>setDelConfirm({type:"biz",id,label:ct>0?`this business page — ${ct} review${ct!==1?"s":""} will be unlinked from it (not deleted, just orphaned)`:"this business page"})} />}
+              onDeleteBusiness={(id,ct)=>setDelConfirm({type:"biz",id,label:ct>0?`this business page — ${ct} review${ct!==1?"s":""} will be unlinked from it (not deleted, just orphaned)`:"this business page"})}
+              onSelectBusiness={id=>setDetailBizId(id)} />}
           </div>
           <TabBar tab={adminTab} onChange={setAdminTab} newCount={newCount} />
         </div>
